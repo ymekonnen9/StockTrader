@@ -1,0 +1,96 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+
+# Test results
+TestResults/
+*.trx
+*.coverage
+*.coveragejson
+*.log
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+
+# Visual Studio
+.vs/
+.vscode/
+*.code-workspace
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+project.lock.json
+project.assets.json
+PackageRestoreConsent.json
+
+# Publish output
+*.publish.xml
+*.pubxml
+*.publishproj
+
+# Web project specific
+wwwroot/dist/
+wwwroot/node_modules/
+
+# Node.js (if used in frontend like Angular or React)
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Environment files
+.env
+.env.*
+
+# Logs
+*.log
+
+# ReSharper
+_ReSharper*/
+*.DotSettings.user
+
+# NCrunch
+*.ncrunch*
+.*crunch*.local.xml
+
+# Backup and temp files
+*.bak
+*.tmp
+*.temp
+*.old
+*.orig
+
+# Entity Framework
+Migrations/
+
+# SQLite local DBs
+*.db
+*.sqlite
+
+# Local tooling and secrets
+Secrets/
+secrets.json
+
+# Ignore generated code or caches
+Generated/
+cache/
+
+# Azure Functions
+.local.settings.json
