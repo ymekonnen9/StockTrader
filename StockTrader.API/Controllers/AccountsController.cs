@@ -12,11 +12,13 @@ namespace StockTrader.API.Controllers
     {
         private readonly UserManager<ApplicationUser> _usermanager;
         private readonly RoleManager<IdentityRole> _rolemanager;
+        private readonly SignInManager<ApplicationUser> _signinmanager;
     
-        public AccountsController(UserManager<ApplicationUser> usermanager, RoleManager<IdentityRole> rolemanager)
+        public AccountsController(UserManager<ApplicationUser> usermanager, RoleManager<IdentityRole> rolemanager, SignInManager<ApplicationUser> signinmanager)
         {
             _usermanager = usermanager;
             _rolemanager = rolemanager;
+            _signinmanager = signinmanager;
         }
 
         [HttpPost("/Register")]
@@ -71,7 +73,49 @@ namespace StockTrader.API.Controllers
             }
             return BadRequest(ModelState);
 
-        } 
+        }
+
+        [HttpPost("/Login")]
+
+        public async Task<IActionResult> Login([FromBody] LoginDto loginDto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new { message = "the request has a problem" });
+            }
+
+            ApplicationUser? user = await _usermanager.FindByNameAsync(loginDto.UserNameOrEmail);
+
+            if(user ==null || loginDto.UserNameOrEmail.Contains("@"))
+            {
+                user = await _usermanager.FindByEmailAsync(loginDto.UserNameOrEmail);
+            }
+
+            if(user == null)
+            {
+                return Unauthorized(new { message = "The username or password doesn't exist" });
+            }
+
+            var result = await _signinmanager.PasswordSignInAsync(user, loginDto.Password, isPersistent: false, lockoutOnFailure: true);
+
+            if (result.Succeeded)
+            {
+                return Ok(new { message="You are logged in" });
+            }
+
+            if (result.IsLockedOut)
+            {
+                return Unauthorized(new { message = "You are locked out due to too many attempts" });
+            }
+
+            if (result.IsNotAllowed)
+            {
+                return Unauthorized(new { message = "Login failed contact customer service" });
+            }
+
+            return Unauthorized(new { message = " Invalid username and password" });
+        }
+
     
     }
 }
