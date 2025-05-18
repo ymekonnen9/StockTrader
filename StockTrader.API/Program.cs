@@ -63,6 +63,7 @@ builder.Services.AddAuthentication(options =>
 });
 // Add services to the container.
 builder.Services.AddScoped<ITokenService, JwtTokenService>();
+//builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -71,6 +72,7 @@ builder.Services.AddSwaggerGen();
 //builder.Services.AddAuthentication();
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<DataSeeder>();
+builder.Services.AddScoped<IStockService, StockService>();
 
 var app = builder.Build();
 await SeedDatabaseAsync(app);
