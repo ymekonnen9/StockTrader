@@ -11,7 +11,7 @@ namespace StockTrader.Infrastructure.Data
 {
     public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
-        public DbSet<Stock> stocks { get; set; }
+        public DbSet<Stock> Stocks { get; set; }
 
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
         {

@@ -38,8 +38,10 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddAuthentication();
 builder.Services.AddAuthorization();
+builder.Services.AddScoped<DataSeeder>();
 
 var app = builder.Build();
+await SeedDatabaseAsync(app);
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -55,3 +57,31 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+
+
+async Task SeedDatabaseAsync(WebApplication webApp)
+{
+    using (var scope = webApp.Services.CreateScope())
+    {
+        var services = scope.ServiceProvider;
+        var logger = services.GetRequiredService<ILogger<Program>>(); 
+        try
+        {
+            var context = services.GetRequiredService<ApplicationDbContext>();
+            var seeder = services.GetRequiredService<DataSeeder>();
+
+            logger.LogInformation("Applying database migrations...");
+            await context.Database.MigrateAsync(); 
+
+            logger.LogInformation("Attempting to seed initial data...");
+            await seeder.SeedAsync();
+            logger.LogInformation("Initial data seeding attempt completed.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "An error occurred during database migration or seeding.");
+ 
+        }
+    }
+}
