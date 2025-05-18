@@ -1,7 +1,13 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using StockTrader.Application.Configuration;
+using StockTrader.Application.Services;
 using StockTrader.Domain.Entities;
 using StockTrader.Infrastructure.Data;
+using StockTrader.Infrastructure.Services;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,15 +34,41 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 
 }).AddEntityFrameworkStores<ApplicationDbContext>().AddDefaultTokenProviders();
 
+var jwtSettings = new JwtSettings();
+builder.Configuration.Bind(JwtSettings.SectionName, jwtSettings); 
+builder.Services.AddSingleton(jwtSettings);
 
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.SaveToken = true; // Saves the token in the HttpContext
+    options.RequireHttpsMetadata = builder.Environment.IsProduction(); // Only require HTTPS in production for easier local dev with HTTP if needed
+    options.TokenValidationParameters = new TokenValidationParameters()
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ClockSkew = TimeSpan.Zero, // Remove default 5-minute clock skew
+
+        ValidIssuer = jwtSettings.Issuer,
+        ValidAudience = jwtSettings.Audience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key))
+    };
+});
 // Add services to the container.
-
+builder.Services.AddScoped<ITokenService, JwtTokenService>();
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddAuthentication();
+//builder.Services.AddAuthentication();
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<DataSeeder>();
 

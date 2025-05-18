@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using StockTrader.Application.DTOs;
+using StockTrader.Application.Services;
 using StockTrader.Domain.Entities;
 
 namespace StockTrader.API.Controllers
@@ -13,12 +14,14 @@ namespace StockTrader.API.Controllers
         private readonly UserManager<ApplicationUser> _usermanager;
         private readonly RoleManager<IdentityRole> _rolemanager;
         private readonly SignInManager<ApplicationUser> _signinmanager;
+        private readonly ITokenService _tokenservice;
     
-        public AccountsController(UserManager<ApplicationUser> usermanager, RoleManager<IdentityRole> rolemanager, SignInManager<ApplicationUser> signinmanager)
+        public AccountsController(UserManager<ApplicationUser> usermanager, RoleManager<IdentityRole> rolemanager, SignInManager<ApplicationUser> signinmanager, ITokenService tokenservice)
         {
             _usermanager = usermanager;
             _rolemanager = rolemanager;
             _signinmanager = signinmanager;
+            _tokenservice = tokenservice;
         }
 
         [HttpPost("/Register")]
@@ -100,7 +103,12 @@ namespace StockTrader.API.Controllers
 
             if (result.Succeeded)
             {
-                return Ok(new { message="You are logged in" });
+                var accessToken = await _tokenservice.GenerateTokenAsync(user);
+                return Ok(new { message = "You are logged in",
+                    Email = user.Email,
+                    UserName = user.UserName,
+                    Token = accessToken
+                });
             }
 
             if (result.IsLockedOut)
