@@ -15,6 +15,6 @@ namespace StockTrader.Domain.Entities
         public Stock stock { get; set; } = null!;
 
         public int Quantity { get; set; }
-        public decimal AveragePrice { get; set; }
+        public decimal AveragePurchasePrice { get; set; }
     }
 }
