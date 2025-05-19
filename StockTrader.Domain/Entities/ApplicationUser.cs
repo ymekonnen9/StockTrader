@@ -11,7 +11,7 @@ namespace StockTrader.Domain.Entities
     {
         public decimal CashAmount { get; set; }
         public virtual ICollection<UserStockHolding> userstockholdings { get; set; } = new List<UserStockHolding>();
-
+        public virtual ICollection<Order> Orders { get; set; } = new List<Order>();
         public ApplicationUser() : base()
         {
             CashAmount = 100000.00m;

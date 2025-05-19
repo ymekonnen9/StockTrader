@@ -13,6 +13,7 @@ namespace StockTrader.Infrastructure.Data
     {
         public DbSet<Stock> Stocks { get; set; }
         public DbSet<UserStockHolding> UserStockHoldings { get; set; }
+        public DbSet<Order> Orders { get; set; }
 
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
         {
@@ -55,7 +56,30 @@ namespace StockTrader.Infrastructure.Data
 
                 entity.Property(ush => ush.Quantity);
 
-                entity.Property(ush => ush.AveragePrice).HasColumnType("decimal(18,4)").IsRequired();
+                entity.Property(ush => ush.AveragePurchasePrice).HasColumnType("decimal(18,4)").IsRequired();
+
+
+            });
+
+            builder.Entity<Order>(entity =>
+            {
+                entity.HasKey(o => o.Id);
+                entity.Property(o => o.Quantity).IsRequired();
+                entity.Property(o => o.TimeOrderedAt).IsRequired();
+                entity.Property(o => o.PriceAtOrdered).HasColumnType("decimal(65,30)").IsRequired();
+                entity.Property(o => o.OrderStatus).IsRequired();
+                entity.Property(o => o.OrderType).IsRequired();
+
+                entity.HasOne(o => o.ApplicationUser)
+                      .WithMany(o => o.Orders)
+                      .HasForeignKey(o => o.ApplicationUserId)
+                      .IsRequired().OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(o => o.Stock)
+                      .WithMany(o => o.Orders)
+                      .HasForeignKey(o => o.StockId)
+                      .IsRequired()
+                      .OnDelete(DeleteBehavior.Restrict);
 
 
             });

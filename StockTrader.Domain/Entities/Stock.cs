@@ -13,7 +13,7 @@ namespace StockTrader.Domain.Entities
         public string CompanyName { get; set; } = string.Empty;
         public decimal CurrentPrice { get; set; }
         public virtual ICollection<UserStockHolding> userstockholdings { get; set; } = new List<UserStockHolding>();
-
+        public virtual ICollection<Order> Orders { get; set; } = new List<Order>();
 
         public Stock()
         {
