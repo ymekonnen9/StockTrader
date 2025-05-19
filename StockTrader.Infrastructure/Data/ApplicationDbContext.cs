@@ -12,6 +12,7 @@ namespace StockTrader.Infrastructure.Data
     public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
         public DbSet<Stock> Stocks { get; set; }
+        public DbSet<UserStockHolding> UserStockHoldings { get; set; }
 
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
         {
@@ -34,6 +35,29 @@ namespace StockTrader.Infrastructure.Data
                 entity.Property(s => s.Symbol).IsRequired().HasMaxLength(10);
                 entity.Property(s => s.CompanyName).IsRequired().HasMaxLength(100);
                 entity.Property(s => s.CurrentPrice).HasColumnType("decimal(18,2)");
+            });
+
+            builder.Entity<UserStockHolding>(entity =>
+            {
+                entity.HasKey(ush => new { ush.ApplicationUserId, ush.StockId });
+
+                entity.HasOne(ush => ush.applicationUser)
+                      .WithMany(u => u.userstockholdings)
+                      .HasForeignKey(u => u.ApplicationUserId)
+                      .IsRequired()
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(s => s.stock)
+                      .WithMany(s => s.userstockholdings)
+                      .HasForeignKey(s => s.StockId)
+                      .IsRequired()
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.Property(ush => ush.Quantity);
+
+                entity.Property(ush => ush.AveragePrice).HasColumnType("decimal(18,4)").IsRequired();
+
+
             });
         }
 

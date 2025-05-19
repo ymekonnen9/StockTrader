@@ -10,6 +10,7 @@ namespace StockTrader.Domain.Entities
     public class ApplicationUser : IdentityUser
     {
         public decimal CashAmount { get; set; }
+        public virtual ICollection<UserStockHolding> userstockholdings { get; set; } = new List<UserStockHolding>();
 
         public ApplicationUser() : base()
         {

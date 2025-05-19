@@ -12,6 +12,8 @@ namespace StockTrader.Domain.Entities
         public string Symbol { get; set; } = string.Empty;
         public string CompanyName { get; set; } = string.Empty;
         public decimal CurrentPrice { get; set; }
+        public virtual ICollection<UserStockHolding> userstockholdings { get; set; } = new List<UserStockHolding>();
+
 
         public Stock()
         {
