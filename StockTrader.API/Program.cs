@@ -74,7 +74,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<DataSeeder>();
 builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddScoped<IPortfolioService, PortfolioService>();
-
+builder.Services.AddScoped<IOrderService, OrderService>();
 var app = builder.Build();
 await SeedDatabaseAsync(app);
 
