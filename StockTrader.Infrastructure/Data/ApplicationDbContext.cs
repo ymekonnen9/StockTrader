@@ -27,6 +27,7 @@ namespace StockTrader.Infrastructure.Data
             builder.Entity<ApplicationUser>(entity =>
             {
                 entity.Property(u => u.CashAmount).HasColumnType("decimal(18,2)");
+                entity.Property(u => u.RowVersion).IsRowVersion();
             });
 
             builder.Entity<Stock>(entity =>
@@ -55,7 +56,7 @@ namespace StockTrader.Infrastructure.Data
                       .OnDelete(DeleteBehavior.Cascade);
 
                 entity.Property(ush => ush.Quantity);
-
+                entity.Property(u => u.RowVersion).IsRowVersion();
                 entity.Property(ush => ush.AveragePurchasePrice).HasColumnType("decimal(18,4)").IsRequired();
 
 

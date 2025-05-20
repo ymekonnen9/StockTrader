@@ -204,6 +204,16 @@ namespace StockTrader.Infrastructure.Services
                 };
 
             }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                await transaction.RollbackAsync();
+                return new OrderPlacementResultDto
+                {
+                    Message = $"There was a concurrency error on your order{ex.Message}",
+                    Success = false
+                };
+
+            }
             catch(Exception e)
             {
                 return new OrderPlacementResultDto
