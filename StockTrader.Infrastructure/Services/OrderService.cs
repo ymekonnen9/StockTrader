@@ -119,7 +119,96 @@ namespace StockTrader.Infrastructure.Services
             {
                 return new OrderPlacementResultDto
                 {
-                    Message = "There was something wrong",
+                    Message = $"There was something wrong{e.Message}",
+                    Success = false
+                };
+            }
+        }
+
+
+
+        public async Task<OrderPlacementResultDto> PlaceSellOrderAsync(string userId, SellOrderRequestDto requestDto)
+        { 
+
+            var user = await _usermanager.FindByIdAsync(userId);
+            if(user == null)
+            {
+                return new OrderPlacementResultDto
+                {
+                    Message = "User identification failed",
+                    Success = false
+                };
+            }
+            var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.Symbol.ToUpper() == user.Id.ToUpper());
+
+            if(stock == null)
+            {
+                return new OrderPlacementResultDto
+                {
+                    Message = "The stock symbol is not correct",
+                    Success = false
+                };
+            }
+
+            var stockholding = await _context.UserStockHoldings.FirstOrDefaultAsync(s => s.ApplicationUserId == user.Id && s.StockId == stock.Id);
+            if(stockholding == null || stockholding.Quantity < stockholding.Quantity)
+            {
+                return new OrderPlacementResultDto
+                {
+                    Message = "You do not have enough stock shares",
+                    Success = false,
+                };
+            }
+
+            var currentStockPrice = stock.CurrentPrice;
+            var totalProceeds = currentStockPrice * requestDto.Quantity;
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                var order = new Order
+                {
+                    ApplicationUserId = user.Id,
+                    StockId = stock.Id,
+                    Quantity = requestDto.Quantity,
+                    OrderType = OrderType.Sell,
+                    PriceAtOrdered = stock.CurrentPrice,
+                    OrderStatus = OrderStatus.Filled,
+                    TimeOrderedAt = DateTime.UtcNow
+                };
+
+                _context.Orders.Add(order);
+
+                user.CashAmount += totalProceeds;
+
+                stockholding.Quantity -= requestDto.Quantity;
+
+                if(stockholding.Quantity == 0)
+                {
+                    _context.UserStockHoldings.Remove(stockholding);
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return new OrderPlacementResultDto
+                {
+                    Success = true,
+                    Message = $"Successfully sold{requestDto.Quantity} stocks",
+                    OrderId = order.Id,
+                    NewCashBalance = user.CashAmount,
+                    StockSymbol = stock.Symbol,
+                    QuantityFilled = requestDto.Quantity,
+                    PriceFilled = stock.CurrentPrice
+
+                };
+
+            }
+            catch(Exception e)
+            {
+                return new OrderPlacementResultDto
+                {
+                    Message = $"There was something wrong{e.Message}",
                     Success = false
                 };
             }
