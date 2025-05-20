@@ -8,10 +8,7 @@ using StockTrader.Domain.Entities;
 using StockTrader.Infrastructure.Data;
 using StockTrader.Infrastructure.Services;
 using System.Text;
-using TradeCraftExchange.Application.Configuration;
-using TradeCraftExchange.Application.Services;
-using TradeCraftExchange.Infrastructure.Services;
-using TradeCraftExchange.Infrastructure.BackgroundServices;
+
 var builder = WebApplication.CreateBuilder(args);
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -40,10 +37,6 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 var jwtSettings = new JwtSettings();
 builder.Configuration.Bind(JwtSettings.SectionName, jwtSettings); 
 builder.Services.AddSingleton(jwtSettings);
-
-var finnhubSettings = new FinnhubSettings();
-builder.Configuration.Bind(FinnhubSettings.SectionName, finnhubSettings); 
-builder.Services.AddSingleton(finnhubSettings);
 
 builder.Services.AddAuthentication(options =>
 {
@@ -75,18 +68,13 @@ builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddHttpClient("FinnhubClient", client =>
-{
-    client.DefaultRequestHeaders.Add("Accept", "application/json");
-});
-builder.Services.AddScoped<IMarketDataService, FinnhubMarketDataService>();
+
 //builder.Services.AddAuthentication();
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<DataSeeder>();
 builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddScoped<IPortfolioService, PortfolioService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
-builder.Services.AddHostedService<StockPriceUpdateService>();
 var app = builder.Build();
 await SeedDatabaseAsync(app);
 
