@@ -121,8 +121,6 @@ app.MapControllers();    // 5. Map your controller endpoints.
 
 app.Run();
 
-
-// Helper function to Seed Database
 async Task SeedDatabaseAsync(WebApplication webApp)
 {
     using (var scope = webApp.Services.CreateScope())
@@ -132,22 +130,20 @@ async Task SeedDatabaseAsync(WebApplication webApp)
         try
         {
             var context = services.GetRequiredService<ApplicationDbContext>();
-            var seeder = services.GetRequiredService<DataSeeder>();
-
-            logger.LogInformation("Applying database migrations if any...");
-            await context.Database.MigrateAsync(); // Ensures DB is created and migrations applied
-
-            logger.LogInformation("Attempting to seed initial data...");
-            await seeder.SeedAsync();
-            logger.LogInformation("Initial data seeding attempt completed.");
+            logger.LogInformation("Attempting simple database connection test with CanConnectAsync...");
+            var canConnect = await context.Database.CanConnectAsync();
+            if (canConnect)
+            {
+                logger.LogInformation("Successfully connected to the database using CanConnectAsync!");
+            }
+            else
+            {
+                logger.LogError("Failed to connect to the database using CanConnectAsync.");
+            }
         }
         catch (Exception ex)
         {
-            // This catch block is critical. If DB connection fails here, this log will be key.
-            logger.LogError(ex, "AN ERROR OCCURRED DURING DATABASE MIGRATION OR SEEDING. APPLICATION MAY NOT START CORRECTLY.");
-            // Depending on the severity, you might want to throw to stop the app,
-            // or allow it to continue if seeding is not absolutely critical for startup.
-            // For now, logging is good.
+            logger.LogError(ex, "Error during simple CanConnectAsync database test.");
         }
     }
 }
