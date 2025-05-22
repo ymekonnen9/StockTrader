@@ -1,8 +1,9 @@
+// In StockTrader.API/Program.cs
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using StockTrader.Application.Configuration;
+using StockTrader.Application.Configuration; // Assuming this is your namespace for JwtSettings
 using StockTrader.Application.Services;
 using StockTrader.Domain.Entities;
 using StockTrader.Infrastructure.Data;
@@ -11,11 +12,12 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// 1. Configure Connection String & DbContext
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseMySql(connectionString,
-        new MySqlServerVersion(new Version(8, 0, 42)), 
+        new MySqlServerVersion(new Version(8, 0, 42)), // Ensure this matches your RDS MySQL version reasonably well
         mySqlOptions => mySqlOptions.EnableRetryOnFailure(
             maxRetryCount: 5,
             maxRetryDelay: TimeSpan.FromSeconds(30),
@@ -23,6 +25,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         )
     ));
 
+// 2. Configure ASP.NET Core Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
     options.Password.RequireDigit = true;
@@ -31,13 +34,16 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     options.Password.RequireUppercase = true;
     options.Password.RequireLowercase = true;
     options.User.RequireUniqueEmail = true;
+})
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddDefaultTokenProviders();
 
-}).AddEntityFrameworkStores<ApplicationDbContext>().AddDefaultTokenProviders();
+// 3. Configure JWT Settings
+var jwtSettings = new JwtSettings(); // Ensure JwtSettings class is defined correctly
+builder.Configuration.Bind(JwtSettings.SectionName, jwtSettings);
+builder.Services.AddSingleton(jwtSettings); // Makes JwtSettings available via DI
 
-var jwtSettings = new JwtSettings();
-builder.Configuration.Bind(JwtSettings.SectionName, jwtSettings); 
-builder.Services.AddSingleton(jwtSettings);
-
+// 4. Configure JWT Authentication
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -46,68 +52,90 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    options.SaveToken = true; // Saves the token in the HttpContext
-    options.RequireHttpsMetadata = builder.Environment.IsProduction(); // Only require HTTPS in production for easier local dev with HTTP if needed
+    options.SaveToken = true;
+    options.RequireHttpsMetadata = !builder.Environment.IsDevelopment(); // More flexible: true if not Development
     options.TokenValidationParameters = new TokenValidationParameters()
     {
         ValidateIssuer = true,
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ClockSkew = TimeSpan.Zero, // Remove default 5-minute clock skew
-
+        ClockSkew = TimeSpan.Zero,
         ValidIssuer = jwtSettings.Issuer,
         ValidAudience = jwtSettings.Audience,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key))
     };
 });
-// Add services to the container.
-builder.Services.AddScoped<ITokenService, JwtTokenService>();
-//builder.Services.AddScoped<IStockService, StockService>();
-builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
 
-//builder.Services.AddAuthentication();
-builder.Services.AddAuthorization();
-builder.Services.AddScoped<DataSeeder>();
+// 5. Add other services to the container.
+builder.Services.AddScoped<ITokenService, JwtTokenService>();
 builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddScoped<IPortfolioService, PortfolioService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
+// Assuming you might add other services like IPaymentService, IMarketDataService later
+
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(); // We'll configure Swagger for JWT later if needed
+
+// builder.Services.AddAuthentication(); // This is redundant, already configured above
+builder.Services.AddAuthorization(); // Registers authorization services
+
+builder.Services.AddScoped<DataSeeder>(); // For seeding initial data
+
 var app = builder.Build();
+
+// 6. Seed Database (runs on application startup)
+// This will attempt database operations. If the connection string is wrong or DB is unreachable,
+// it will fail here and likely prevent the app from starting properly.
 await SeedDatabaseAsync(app);
 
-// Configure the HTTP request pipeline.
+// 7. Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    app.UseDeveloperExceptionPage(); // Good for seeing detailed errors in dev
+}
+else
+{
+    // For production, you might want more robust error handling
+    app.UseExceptionHandler("/Error"); // You'd need to create an Error handling mechanism/page
+    app.UseHsts();
 }
 
 app.UseHttpsRedirection();
 
-app.UseAuthorization();
+// ** CRITICAL ORDERING FOR MIDDLEWARE **
+app.UseRouting(); // 1. Call UseRouting first to establish endpoint selection.
 
-app.MapControllers();
+app.UseCors("_myAllowSpecificOrigins"); // 2. Call UseCors after UseRouting and before UseAuthentication/UseAuthorization
+                                        //    (Assuming you have a CORS policy named "_myAllowSpecificOrigins" defined)
+                                        //    If you don't have CORS yet, you can omit this line for now,
+                                        //    but you'll need it for a separate frontend.
+
+app.UseAuthentication(); // 3. Call UseAuthentication before UseAuthorization. THIS WAS MISSING!
+app.UseAuthorization();  // 4. Now UseAuthorization.
+
+app.MapControllers();    // 5. Map your controller endpoints.
 
 app.Run();
 
 
-
+// Helper function to Seed Database
 async Task SeedDatabaseAsync(WebApplication webApp)
 {
     using (var scope = webApp.Services.CreateScope())
     {
         var services = scope.ServiceProvider;
-        var logger = services.GetRequiredService<ILogger<Program>>(); 
+        var logger = services.GetRequiredService<ILogger<Program>>();
         try
         {
             var context = services.GetRequiredService<ApplicationDbContext>();
             var seeder = services.GetRequiredService<DataSeeder>();
 
-            logger.LogInformation("Applying database migrations...");
-            await context.Database.MigrateAsync(); 
+            logger.LogInformation("Applying database migrations if any...");
+            await context.Database.MigrateAsync(); // Ensures DB is created and migrations applied
 
             logger.LogInformation("Attempting to seed initial data...");
             await seeder.SeedAsync();
@@ -115,8 +143,11 @@ async Task SeedDatabaseAsync(WebApplication webApp)
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "An error occurred during database migration or seeding.");
- 
+            // This catch block is critical. If DB connection fails here, this log will be key.
+            logger.LogError(ex, "AN ERROR OCCURRED DURING DATABASE MIGRATION OR SEEDING. APPLICATION MAY NOT START CORRECTLY.");
+            // Depending on the severity, you might want to throw to stop the app,
+            // or allow it to continue if seeding is not absolutely critical for startup.
+            // For now, logging is good.
         }
     }
 }
