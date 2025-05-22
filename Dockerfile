@@ -34,6 +34,7 @@
     # Let's assume your app listens on port 8080 for HTTP inside the container.
     # You can configure this in your API's Program.cs or launchSettings.json (for Kestrel).
     EXPOSE 8080
+    EXPOSE 80
     # If you also want to expose an HTTPS port from the container (requires certs in container):
     # EXPOSE 8081
 
