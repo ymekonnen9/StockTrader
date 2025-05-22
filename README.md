@@ -1,10 +1,10 @@
-# TradeCraft Exchange
+# StockTrader Exchange
 
-**TradeCraft Exchange** is a simulated web-based stock trading platform built with .NET 8. This project serves as a comprehensive learning exercise to explore and implement advanced concepts in backend development, API design, database management, and integration with third-party services using modern .NET technologies.
+**StockTrader Exchange** is a simulated web-based stock trading platform built with .NET 8. This project serves as a comprehensive learning exercise to explore and implement advanced concepts in backend development, API design, database management, and integration with third-party services using modern .NET technologies.
 
 ## Project Description
 
-The goal of TradeCraft Exchange is to create a feature-rich simulated environment where users can:
+The goal of StockTrader Exchange is to create a feature-rich simulated environment where users can:
 * Register and manage their accounts.
 * Add virtual funds to their trading accounts (simulated via Stripe's test environment).
 * View (simulated) stock information and prices.
@@ -83,12 +83,12 @@ To run this project locally, you'll need the following prerequisites:
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/ymekonnen9/TradeCraftExchange.git
-    cd TradeCraftExchange
+    git clone https://github.com/ymekonnen9/StockTraderExchange.git
+    cd StockTraderExchange
     ```
 
 2.  **Configure Application Settings:**
-    * Navigate to the `TradeCraftExchange.API` project folder.
+    * Navigate to the `StockTraderExchange.API` project folder.
     * Create an `appsettings.Development.json` file (you can copy `appsettings.json` if it exists and rename, or create it from scratch).
     * Update `appsettings.Development.json` with your specific configurations:
         * **`ConnectionStrings:DefaultConnection`**: Set your MySQL connection string.
@@ -100,12 +100,12 @@ To run this project locally, you'll need the following prerequisites:
 
 3.  **Apply Database Migrations:**
     * Open a terminal or Package Manager Console in Visual Studio.
-    * Ensure `TradeCraftExchange.API` is set as the Startup Project.
-    * If using Package Manager Console (ensure `TradeCraftExchange.API` is default/startup):
+    * Ensure `StockTraderExchange.API` is set as the Startup Project.
+    * If using Package Manager Console (ensure `StockTraderExchange.API` is default/startup):
         ```powershell
         Update-Database
         ```
-    * If using .NET CLI (navigate to the `TradeCraftExchange.API` project directory):
+    * If using .NET CLI (navigate to the `StockTraderExchange.API` project directory):
         ```bash
         dotnet ef database update
         ```
@@ -113,7 +113,7 @@ To run this project locally, you'll need the following prerequisites:
 4.  **Run the Application:**
     * From Visual Studio (F5 or Ctrl+F5) or using the .NET CLI:
         ```bash
-        cd TradeCraftExchange.API
+        cd StockTraderExchange.API
         dotnet run
         ```
 

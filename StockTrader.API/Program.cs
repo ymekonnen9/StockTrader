@@ -15,7 +15,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseMySql(connectionString,
-        new MySqlServerVersion(new Version(8, 0, 21)), // IMPORTANT: Update to your MySQL Server version
+        new MySqlServerVersion(new Version(8, 0, 42)), 
         mySqlOptions => mySqlOptions.EnableRetryOnFailure(
             maxRetryCount: 5,
             maxRetryDelay: TimeSpan.FromSeconds(30),
