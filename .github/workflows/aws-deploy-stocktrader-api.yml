@@ -1,9 +1,11 @@
 ---
 name: Build and Deploy StockTrader API to AWS ECS
+
 on:
   push:
     branches:
       - main
+
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: stocktrader-api
@@ -12,39 +14,43 @@ env:
   ECS_TASK_DEFINITION_FAMILY: tradecraft-api-task
   CONTAINER_NAME: stocktrader-api-container
   DOTNET_VERSION: 8.0.x
+
 jobs:
   build-and-push-to-ecr:
     name: Build and Push to ECR
     runs-on: ubuntu-latest
+    outputs:
+      image_uri: ${{ steps.build-image.outputs.image_uri }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
-        run: >
+        run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f Dockerfile .
-
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-
           echo "image_uri=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
   deploy-to-ecs:
     name: Deploy to ECS
     runs-on: ubuntu-latest
@@ -52,13 +58,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-      - name: Download task definition (Optional - if you manage it in a file)
+
       - name: Fill in the new image ID in the Amazon ECS task definition
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
@@ -66,6 +73,7 @@ jobs:
           task-definition: ${{ env.ECS_TASK_DEFINITION_FAMILY }}
           container-name: ${{ env.CONTAINER_NAME }}
           image: ${{ needs.build-and-push-to-ecr.outputs.image_uri }}
+
       - name: Deploy Amazon ECS task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
