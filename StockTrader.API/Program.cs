@@ -120,6 +120,7 @@ app.UseAuthorization();  // 4. Now UseAuthorization.
 app.MapControllers();    // 5. Map your controller endpoints.
 
 app.Run();
+// In StockTrader.API/Program.cs
 
 async Task SeedDatabaseAsync(WebApplication webApp)
 {
@@ -127,23 +128,40 @@ async Task SeedDatabaseAsync(WebApplication webApp)
     {
         var services = scope.ServiceProvider;
         var logger = services.GetRequiredService<ILogger<Program>>();
+        // It's better to resolve DbContext inside the try block if its creation could fail,
+        // but for CanConnectAsync, getting it here is fine.
+        var context = services.GetRequiredService<ApplicationDbContext>();
         try
         {
-            var context = services.GetRequiredService<ApplicationDbContext>();
-            logger.LogInformation("Attempting simple database connection test with CanConnectAsync...");
+            logger.LogInformation("<<<<< Attempting simple database connection test with CanConnectAsync... >>>>>");
+            // You can try setting a longer command timeout specifically for this test if you suspect
+            // an unusually slow initial handshake, though the default should be generous enough for a timeout.
+            // context.Database.SetCommandTimeout(120); // e.g., 120 seconds
+
             var canConnect = await context.Database.CanConnectAsync();
+
             if (canConnect)
             {
-                logger.LogInformation("Successfully connected to the database using CanConnectAsync!");
+                logger.LogInformation("<<<<< SUCCESS! Successfully connected to the database using CanConnectAsync! >>>>>");
+
+                // For this test, we are NOT running migrations or full seeding.
+                // If CanConnectAsync works, we can then re-introduce migrations and seeding.
+                // logger.LogInformation("Applying database migrations if any...");
+                // await context.Database.MigrateAsync();
+                // var seeder = services.GetRequiredService<DataSeeder>();
+                // logger.LogInformation("Attempting to seed initial data...");
+                // await seeder.SeedAsync();
+                // logger.LogInformation("Initial data seeding attempt completed.");
             }
             else
             {
-                logger.LogError("Failed to connect to the database using CanConnectAsync.");
+                logger.LogError("<<<<< FAILURE! Failed to connect to the database using CanConnectAsync. Check RDS public accessibility, security groups, connection string details, and Fargate task outbound internet access. >>>>>");
             }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error during simple CanConnectAsync database test.");
+            // This will catch the MySqlConnector.MySqlException if CanConnectAsync itself throws it due to timeout.
+            logger.LogError(ex, "<<<<< EXCEPTION during CanConnectAsync database test. This likely means a connection timeout or other fundamental connection issue. >>>>>");
         }
     }
 }
