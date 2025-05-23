@@ -130,8 +130,8 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.Run();
+// In StockTrader.API/Program.cs
 
-// Helper method for seeding the database
 async Task SeedDatabaseAsync(WebApplication webApp)
 {
     using var scope = webApp.Services.CreateScope();
@@ -146,14 +146,26 @@ async Task SeedDatabaseAsync(WebApplication webApp)
         if (canConnect)
         {
             logger.LogInformation("<<<<< SUCCESS! Successfully connected to the database using CanConnectAsync! >>>>>");
+
+            // ****** UNCOMMENT THE FOLLOWING LINES TO TEST MIGRATIONS ******
+            logger.LogInformation("Applying database migrations if any...");
+            await context.Database.MigrateAsync(); // This will create tables if they don't exist
+            logger.LogInformation("<<<<< SUCCESS! Database migrations applied (or database was up-to-date). >>>>>");
+
+            // Keep full seeding commented out for this step
+            // var seeder = services.GetRequiredService<DataSeeder>();
+            // logger.LogInformation("Attempting to seed initial data...");
+            // await seeder.SeedAsync();
+            // logger.LogInformation("Initial data seeding attempt completed.");
         }
         else
         {
-            logger.LogError("<<<<< FAILURE! Cannot connect to the database. >>>>>");
+            logger.LogError("<<<<< FAILURE! Cannot connect to the database using CanConnectAsync. Check RDS public accessibility, security groups, connection string details, and Fargate task outbound internet access. >>>>>");
         }
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "<<<<< EXCEPTION during CanConnectAsync database test. >>>>>");
+        // This will catch exceptions from CanConnectAsync OR MigrateAsync
+        logger.LogError(ex, "<<<<< EXCEPTION during database initialization (CanConnectAsync or MigrateAsync). >>>>>");
     }
 }
