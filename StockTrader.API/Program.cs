@@ -1,9 +1,9 @@
-// In StockTrader.API/Program.cs
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using StockTrader.Application.Configuration; // Assuming this is your namespace for JwtSettings
+using StockTrader.Application.Configuration;
 using StockTrader.Application.Services;
 using StockTrader.Domain.Entities;
 using StockTrader.Infrastructure.Data;
@@ -12,12 +12,17 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Configure Kestrel to listen on port 8080
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    serverOptions.ListenAnyIP(8080);
+});
+
 // 1. Configure Connection String & DbContext
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseMySql(connectionString,
-        new MySqlServerVersion(new Version(8, 0, 42)), // Ensure this matches your RDS MySQL version reasonably well
+        new MySqlServerVersion(new Version(8, 0, 42)),
         mySqlOptions => mySqlOptions.EnableRetryOnFailure(
             maxRetryCount: 5,
             maxRetryDelay: TimeSpan.FromSeconds(30),
@@ -35,13 +40,13 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     options.Password.RequireLowercase = true;
     options.User.RequireUniqueEmail = true;
 })
-    .AddEntityFrameworkStores<ApplicationDbContext>()
-    .AddDefaultTokenProviders();
+.AddEntityFrameworkStores<ApplicationDbContext>()
+.AddDefaultTokenProviders();
 
 // 3. Configure JWT Settings
-var jwtSettings = new JwtSettings(); // Ensure JwtSettings class is defined correctly
+var jwtSettings = new JwtSettings();
 builder.Configuration.Bind(JwtSettings.SectionName, jwtSettings);
-builder.Services.AddSingleton(jwtSettings); // Makes JwtSettings available via DI
+builder.Services.AddSingleton(jwtSettings);
 
 // 4. Configure JWT Authentication
 builder.Services.AddAuthentication(options =>
@@ -53,7 +58,7 @@ builder.Services.AddAuthentication(options =>
 .AddJwtBearer(options =>
 {
     options.SaveToken = true;
-    options.RequireHttpsMetadata = !builder.Environment.IsDevelopment(); // More flexible: true if not Development
+    options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
     options.TokenValidationParameters = new TokenValidationParameters()
     {
         ValidateIssuer = true,
@@ -67,101 +72,88 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// 5. Add other services to the container.
+// 5. Register Services
 builder.Services.AddScoped<ITokenService, JwtTokenService>();
 builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddScoped<IPortfolioService, PortfolioService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
-// Assuming you might add other services like IPaymentService, IMarketDataService later
+builder.Services.AddScoped<DataSeeder>();
 
+// 6. Add CORS Policy
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("_myAllowSpecificOrigins", builder =>
+    {
+        builder.WithOrigins("http://localhost:3000")
+               .AllowAnyHeader()
+               .AllowAnyMethod();
+    });
+});
+
+// 7. Add Swagger and API controllers
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(); // We'll configure Swagger for JWT later if needed
+builder.Services.AddSwaggerGen();
 
-// builder.Services.AddAuthentication(); // This is redundant, already configured above
-builder.Services.AddAuthorization(); // Registers authorization services
+// 8. Add Authorization
+builder.Services.AddAuthorization();
 
-builder.Services.AddScoped<DataSeeder>(); // For seeding initial data
-
+// 9. Build App
 var app = builder.Build();
 
-// 6. Seed Database (runs on application startup)
-// This will attempt database operations. If the connection string is wrong or DB is unreachable,
-// it will fail here and likely prevent the app from starting properly.
+// 10. Seed Database (non-critical startup task)
 await SeedDatabaseAsync(app);
 
-// 7. Configure the HTTP request pipeline.
+// 11. Configure Middleware (order matters!)
+app.UseSwagger();
+app.UseSwaggerUI(options =>
+{
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "StockTrader API V1");
+    options.RoutePrefix = string.Empty; // Serve Swagger UI at root
+});
+
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-    app.UseDeveloperExceptionPage(); // Good for seeing detailed errors in dev
+    app.UseDeveloperExceptionPage();
 }
 else
 {
-    // For production, you might want more robust error handling
-    app.UseExceptionHandler("/Error"); // You'd need to create an Error handling mechanism/page
+    app.UseExceptionHandler("/Error");
     app.UseHsts();
+    app.UseHttpsRedirection();
 }
 
-app.UseHttpsRedirection();
+app.UseRouting();
+app.UseCors("_myAllowSpecificOrigins");
+app.UseAuthentication();
+app.UseAuthorization();
 
-// ** CRITICAL ORDERING FOR MIDDLEWARE **
-app.UseRouting(); // 1. Call UseRouting first to establish endpoint selection.
-
-app.UseCors("_myAllowSpecificOrigins"); // 2. Call UseCors after UseRouting and before UseAuthentication/UseAuthorization
-                                        //    (Assuming you have a CORS policy named "_myAllowSpecificOrigins" defined)
-                                        //    If you don't have CORS yet, you can omit this line for now,
-                                        //    but you'll need it for a separate frontend.
-
-app.UseAuthentication(); // 3. Call UseAuthentication before UseAuthorization. THIS WAS MISSING!
-app.UseAuthorization();  // 4. Now UseAuthorization.
-
-app.MapControllers();    // 5. Map your controller endpoints.
-
+app.MapControllers();
 app.Run();
-// In StockTrader.API/Program.cs
 
+// Helper method for seeding the database
 async Task SeedDatabaseAsync(WebApplication webApp)
 {
-    using (var scope = webApp.Services.CreateScope())
+    using var scope = webApp.Services.CreateScope();
+    var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    var context = services.GetRequiredService<ApplicationDbContext>();
+    try
     {
-        var services = scope.ServiceProvider;
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        // It's better to resolve DbContext inside the try block if its creation could fail,
-        // but for CanConnectAsync, getting it here is fine.
-        var context = services.GetRequiredService<ApplicationDbContext>();
-        try
+        logger.LogInformation("<<<<< Attempting simple database connection test with CanConnectAsync... >>>>>");
+        var canConnect = await context.Database.CanConnectAsync();
+
+        if (canConnect)
         {
-            logger.LogInformation("<<<<< Attempting simple database connection test with CanConnectAsync... >>>>>");
-            // You can try setting a longer command timeout specifically for this test if you suspect
-            // an unusually slow initial handshake, though the default should be generous enough for a timeout.
-            // context.Database.SetCommandTimeout(120); // e.g., 120 seconds
-
-            var canConnect = await context.Database.CanConnectAsync();
-
-            if (canConnect)
-            {
-                logger.LogInformation("<<<<< SUCCESS! Successfully connected to the database using CanConnectAsync! >>>>>");
-
-                // For this test, we are NOT running migrations or full seeding.
-                // If CanConnectAsync works, we can then re-introduce migrations and seeding.
-                // logger.LogInformation("Applying database migrations if any...");
-                // await context.Database.MigrateAsync();
-                // var seeder = services.GetRequiredService<DataSeeder>();
-                // logger.LogInformation("Attempting to seed initial data...");
-                // await seeder.SeedAsync();
-                // logger.LogInformation("Initial data seeding attempt completed.");
-            }
-            else
-            {
-                logger.LogError("<<<<< FAILURE! Failed to connect to the database using CanConnectAsync. Check RDS public accessibility, security groups, connection string details, and Fargate task outbound internet access. >>>>>");
-            }
+            logger.LogInformation("<<<<< SUCCESS! Successfully connected to the database using CanConnectAsync! >>>>>");
         }
-        catch (Exception ex)
+        else
         {
-            // This will catch the MySqlConnector.MySqlException if CanConnectAsync itself throws it due to timeout.
-            logger.LogError(ex, "<<<<< EXCEPTION during CanConnectAsync database test. This likely means a connection timeout or other fundamental connection issue. >>>>>");
+            logger.LogError("<<<<< FAILURE! Cannot connect to the database. >>>>>");
         }
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "<<<<< EXCEPTION during CanConnectAsync database test. >>>>>");
     }
 }
