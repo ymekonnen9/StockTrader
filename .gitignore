@@ -1,7 +1,11 @@
 # Build results
 [Bb]in/
 [Oo]bj/
-
+terraform.tfvars
+*.auto.tfvars
+terraform.tfstate
+terraform.tfstate.backup
+.terraform/
 # Test results
 TestResults/
 *.trx
