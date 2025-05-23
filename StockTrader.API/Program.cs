@@ -127,21 +127,36 @@ var app = builder.Build();
 await SeedDatabaseAsync(app);
 
 
-// Only this middleware for now for the root path test
-// if (app.Environment.IsDevelopment())
-// {
-//     app.UseDeveloperExceptionPage();
-// }
+await SeedDatabaseAsync(app); // Your existing seeding logic
+
+// Configure the HTTP request pipeline.
+
+// Only use Swagger and SwaggerUI if in Development environment
+// This is the most common and recommended setup for security.
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "StockTrader API V1");
+        // By default, RoutePrefix is "swagger", so UI will be at /swagger
+    });
+    app.UseDeveloperExceptionPage();
+}
+else
+{
+    app.UseExceptionHandler("/Error"); // You would create an Error handling mechanism/page
+    app.UseHsts();
+    // app.UseHttpsRedirection(); // Usually handled by ALB if it terminates SSL
+}
 
 app.UseRouting();
+app.UseCors("_myAllowSpecificOrigins"); // Ensure this policy is correctly defined
+app.UseAuthentication();
+app.UseAuthorization();
 
-// Very simple root endpoint
-app.MapGet("/", () => "Hello from Fargate! Root is working.");
-
-// Your working health check
-app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
-
-// app.MapControllers(); // Only if you need controllers for /health, otherwise the MapGet above is fine
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" })); // Your health check
+app.MapControllers();
 
 app.Run();
 
