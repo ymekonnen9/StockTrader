@@ -1,9 +1,8 @@
-// In StockTrader.API/Program.cs
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using StockTrader.Application.Configuration; // Assuming this is your namespace for JwtSettings
+using StockTrader.Application.Configuration;
 using StockTrader.Application.Services;
 using StockTrader.Domain.Entities;
 using StockTrader.Infrastructure.Data;
@@ -16,7 +15,7 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseMySql(connectionString,
-        new MySqlServerVersion(new Version(8, 0, 42)), // Ensure this matches your RDS MySQL version reasonably well
+        new MySqlServerVersion(new Version(8, 0, 42)),
         mySqlOptions => mySqlOptions.EnableRetryOnFailure(
             maxRetryCount: 5,
             maxRetryDelay: TimeSpan.FromSeconds(30),
@@ -34,13 +33,13 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     options.Password.RequireLowercase = true;
     options.User.RequireUniqueEmail = true;
 })
-    .AddEntityFrameworkStores<ApplicationDbContext>()
-    .AddDefaultTokenProviders();
+.AddEntityFrameworkStores<ApplicationDbContext>()
+.AddDefaultTokenProviders();
 
 // 3. Configure JWT Settings
-var jwtSettings = new JwtSettings(); // Ensure JwtSettings class is defined correctly
+var jwtSettings = new JwtSettings();
 builder.Configuration.Bind(JwtSettings.SectionName, jwtSettings);
-builder.Services.AddSingleton(jwtSettings); // Makes JwtSettings available via DI
+builder.Services.AddSingleton(jwtSettings);
 
 // 4. Configure JWT Authentication
 builder.Services.AddAuthentication(options =>
@@ -52,8 +51,8 @@ builder.Services.AddAuthentication(options =>
 .AddJwtBearer(options =>
 {
     options.SaveToken = true;
-    options.RequireHttpsMetadata = !builder.Environment.IsDevelopment(); // true if not Development
-    options.TokenValidationParameters = new TokenValidationParameters()
+    options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+    options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
         ValidateAudience = true,
@@ -66,119 +65,121 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// 5. Register Services
+// 5. Register Application Services
 builder.Services.AddScoped<ITokenService, JwtTokenService>();
 builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddScoped<IPortfolioService, PortfolioService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
-builder.Services.AddScoped<DataSeeder>(); // For seeding initial data
+builder.Services.AddScoped<DataSeeder>();
 
-// 6. Add CORS Policy (ensure "_myAllowSpecificOrigins" is defined or adjust as needed)
-// For now, assuming you have a React frontend running on http://localhost:3000 for local dev
-// For AWS deployment, your ALB/custom domain would be a different origin.
+// 6. Add CORS
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("_myAllowSpecificOrigins", policyBuilder => // Renamed builder to policyBuilder for clarity
+    options.AddPolicy("_myAllowSpecificOrigins", policyBuilder =>
     {
-        // For development with local React app
-        policyBuilder.WithOrigins("http://localhost:3000") // If your React app runs on port 3000
-               .AllowAnyHeader()
-               .AllowAnyMethod();
-
+        policyBuilder.WithOrigins("http://localhost:3000")
+                     .AllowAnyHeader()
+                     .AllowAnyMethod();
     });
 });
 
-// 7. Add Swagger and API controllers
+// 7. Add Controllers and Swagger
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options => // Added options for JWT in Swagger
+builder.Services.AddSwaggerGen(options =>
 {
-    options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo { Title = "StockTrader API", Version = "v1" });
+    options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "StockTrader API",
+        Version = "v1"
+    });
+
     options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
         In = Microsoft.OpenApi.Models.ParameterLocation.Header,
-        Description = "Please enter into field the word 'Bearer' followed by a space and the JWT value",
+        Description = "Enter 'Bearer' followed by your JWT token",
         Name = "Authorization",
         Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
     });
-    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement {
+
+    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
     {
-        new Microsoft.OpenApi.Models.OpenApiSecurityScheme
         {
-            Reference = new Microsoft.OpenApi.Models.OpenApiReference
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
             {
-                Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
-                Id = "Bearer"
-            }
-        },
-        new string[] {}
-    }});
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] { }
+        }
+    });
 });
 
-
-// 8. Add Authorization
 builder.Services.AddAuthorization();
 
-// 9. Build App
+// 8. Build App
 var app = builder.Build();
 
-// 10. Seed Database (runs on application startup)
+Console.WriteLine("ASPNETCORE_ENVIRONMENT = " + app.Environment.EnvironmentName);
+
+// 9. Seed Database
 await SeedDatabaseAsync(app);
 
-if (app.Environment.IsDevelopment())
+// 10. Enable Swagger (always)
+app.UseSwagger();
+app.UseSwaggerUI(options =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-
-
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "StockTrader API V1");
+    options.RoutePrefix = "swagger"; // Accessible at /swagger
+});
 
 app.UseRouting();
-app.UseCors("_myAllowSpecificOrigins"); // Ensure this policy is correctly defined
+app.UseCors("_myAllowSpecificOrigins");
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapGet("/health", () => Results.Ok(new { status = "healthy" })); // Your health check
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 app.MapControllers();
 
 app.Run();
 
-
-// Helper method for seeding the database
+// 11. Database Seeder
 async Task SeedDatabaseAsync(WebApplication webApp)
 {
     using var scope = webApp.Services.CreateScope();
     var services = scope.ServiceProvider;
     var logger = services.GetRequiredService<ILogger<Program>>();
     var context = services.GetRequiredService<ApplicationDbContext>();
+
     try
     {
-        logger.LogInformation("<<<<< Attempting simple database connection test with CanConnectAsync... >>>>>");
+        logger.LogInformation("<<<<< Checking DB connection with CanConnectAsync... >>>>>");
         var canConnect = await context.Database.CanConnectAsync();
 
         if (canConnect)
         {
-            logger.LogInformation("<<<<< SUCCESS! Successfully connected to the database using CanConnectAsync! >>>>>");
+            logger.LogInformation("<<<<< SUCCESS: Connected to DB! >>>>>");
+            logger.LogInformation("Applying migrations...");
+            await context.Database.MigrateAsync();
+            logger.LogInformation("<<<<< Migrations applied successfully. >>>>>");
 
-            logger.LogInformation("Applying database migrations if any...");
-            await context.Database.MigrateAsync(); // This will create tables if they don't exist
-            logger.LogInformation("<<<<< SUCCESS! Database migrations applied (or database was up-to-date). >>>>>");
-
-            // Keep full seeding commented out for this specific test phase
+            // Uncomment if seeding is needed
             // var seeder = services.GetRequiredService<DataSeeder>();
-            // logger.LogInformation("Attempting to seed initial data...");
+            // logger.LogInformation("Seeding initial data...");
             // await seeder.SeedAsync();
-            // logger.LogInformation("Initial data seeding attempt completed.");
+            // logger.LogInformation("Data seeded.");
         }
         else
         {
-            logger.LogError("<<<<< FAILURE! Cannot connect to the database using CanConnectAsync. Check RDS public accessibility, security groups, connection string details, and Fargate task outbound internet access. >>>>>");
+            logger.LogError("<<<<< FAILED: Cannot connect to DB. Check RDS/public access/connection string. >>>>>");
         }
     }
     catch (Exception ex)
     {
-        // This will catch exceptions from CanConnectAsync OR MigrateAsync
-        logger.LogError(ex, "<<<<< EXCEPTION during database initialization (CanConnectAsync or MigrateAsync). >>>>>");
+        logger.LogError(ex, "<<<<< EXCEPTION during DB initialization. >>>>>");
     }
 }
