@@ -129,18 +129,26 @@ Console.WriteLine("ASPNETCORE_ENVIRONMENT = " + app.Environment.EnvironmentName)
 // 9. Seed Database
 await SeedDatabaseAsync(app);
 
-// 10. Enable Swagger (always)
+// ------------------- START: CORRECTED PIPELINE -------------------
+
 app.UseSwagger();
 app.UseSwaggerUI(options =>
 {
     options.SwaggerEndpoint("/swagger/v1/swagger.json", "StockTrader API V1");
-    options.RoutePrefix = "swagger"; // Accessible at /swagger
+    options.RoutePrefix = "swagger";
 });
+
 app.UseStaticFiles();
+
+
 app.UseRouting();
+
 app.UseCors("_myAllowSpecificOrigins");
+
 app.UseAuthentication();
+
 app.UseAuthorization();
+
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 app.MapControllers();
