@@ -126,29 +126,17 @@ var app = builder.Build();
 // 10. Seed Database (runs on application startup)
 await SeedDatabaseAsync(app);
 
-
-await SeedDatabaseAsync(app); // Your existing seeding logic
-
 // Configure the HTTP request pipeline.
 
 // Only use Swagger and SwaggerUI if in Development environment
 // This is the most common and recommended setup for security.
-if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(options =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(options =>
-    {
-        options.SwaggerEndpoint("/swagger/v1/swagger.json", "StockTrader API V1");
-        // By default, RoutePrefix is "swagger", so UI will be at /swagger
-    });
-    app.UseDeveloperExceptionPage();
-}
-else
-{
-    app.UseExceptionHandler("/Error"); // You would create an Error handling mechanism/page
-    app.UseHsts();
-    // app.UseHttpsRedirection(); // Usually handled by ALB if it terminates SSL
-}
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "StockTrader API V1");
+    options.RoutePrefix = "swagger"; // Default
+});
+
 
 app.UseRouting();
 app.UseCors("_myAllowSpecificOrigins"); // Ensure this policy is correctly defined
