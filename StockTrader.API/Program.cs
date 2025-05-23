@@ -85,14 +85,6 @@ builder.Services.AddCors(options =>
                .AllowAnyHeader()
                .AllowAnyMethod();
 
-        // TODO: For production, you'll need to add your deployed frontend's origin
-        // and potentially be more specific with headers/methods.
-        // Example:
-        // if (!builder.Environment.IsDevelopment()) {
-        //     policyBuilder.WithOrigins("https://your-production-frontend-domain.com")
-        //                  .AllowAnyHeader()
-        //                  .AllowAnyMethod();
-        // }
     });
 });
 
@@ -134,19 +126,13 @@ var app = builder.Build();
 // 10. Seed Database (runs on application startup)
 await SeedDatabaseAsync(app);
 
-// 11. Configure Middleware (order matters!)
 
-// Serve Swagger UI at the root if RoutePrefix is string.Empty
-// This should be available in Development, and conditionally in other environments if desired.
-if (app.Environment.IsDevelopment()) // Or a custom check if you want Swagger in deployed dev/staging
+app.UseSwagger();
+app.UseSwaggerUI(options =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(options =>
-    {
-        options.SwaggerEndpoint("/swagger/v1/swagger.json", "StockTrader API V1");
-        options.RoutePrefix = string.Empty; // Serve Swagger UI at the root (e.g., /)
-    });
-}
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "StockTrader API V1");
+    options.RoutePrefix = "swagger"; 
+});
 
 
 if (app.Environment.IsDevelopment())
@@ -155,33 +141,17 @@ if (app.Environment.IsDevelopment())
 }
 else
 {
-    app.UseExceptionHandler("/Error"); // You would create an Error handling mechanism/page
+    app.UseExceptionHandler("/Error");
     app.UseHsts();
-    // HTTPS Redirection is usually handled by the ALB if it terminates SSL.
-    // If ALB forwards HTTP to Fargate, then app.UseHttpsRedirection() in the container
-    // might cause redirect loops if not configured carefully with forwarded headers.
-    // For now, let's assume ALB handles HTTPS and forwards HTTP.
-    // app.UseHttpsRedirection();
+    // app.UseHttpsRedirection(); // Consider if ALB handles SSL termination
 }
 
-// If your ALB terminates SSL and forwards HTTP to the container,
-// you might need to configure forwarded headers middleware for UseHttpsRedirection,
-// IsHttps, and scheme to work correctly.
-// app.UseForwardedHeaders(new ForwardedHeadersOptions
-// {
-//     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-// });
-
 app.UseRouting();
-
-app.UseCors("_myAllowSpecificOrigins"); // Apply your CORS policy
-
-app.UseAuthentication(); // IMPORTANT: This was added in a previous step
+app.UseCors("_myAllowSpecificOrigins");
+app.UseAuthentication();
 app.UseAuthorization();
 
-// ****** ADDED Dedicated Health Check Endpoint ******
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
-
 app.MapControllers();
 
 app.Run();
