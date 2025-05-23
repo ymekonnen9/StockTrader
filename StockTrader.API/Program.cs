@@ -119,6 +119,7 @@ builder.Services.AddSwaggerGen(options => // Added options for JWT in Swagger
 
 // 8. Add Authorization
 builder.Services.AddAuthorization();
+builder.Services.AddSwaggerGen();
 
 // 9. Build App
 var app = builder.Build();
@@ -126,15 +127,11 @@ var app = builder.Build();
 // 10. Seed Database (runs on application startup)
 await SeedDatabaseAsync(app);
 
-// Configure the HTTP request pipeline.
-
-// Only use Swagger and SwaggerUI if in Development environment
-// This is the most common and recommended setup for security.
-app.UseSwagger();
-app.UseSwaggerUI(options =>
+if (app.Environment.IsDevelopment())
 {
-    options.SwaggerEndpoint("/swagger/v1/swagger.json", "StockTrader API V1");
-});
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
 
 
