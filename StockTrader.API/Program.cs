@@ -131,7 +131,7 @@ app.UseSwagger();
 app.UseSwaggerUI(options =>
 {
     options.SwaggerEndpoint("/swagger/v1/swagger.json", "StockTrader API V1");
-    options.RoutePrefix = "swagger"; 
+    options.RoutePrefix = string.Empty; 
 });
 
 
