@@ -180,9 +180,7 @@ app.UseAuthentication(); // IMPORTANT: This was added in a previous step
 app.UseAuthorization();
 
 // ****** ADDED Dedicated Health Check Endpoint ******
-app.MapGet("/health", () => Results.Ok(new { status = "healthy" }))
-   .WithName("HealthCheck") // Optional: give it a name for OpenAPI
-   .WithTags("Health");    // Optional: group it in Swagger
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 
 app.MapControllers();
 
