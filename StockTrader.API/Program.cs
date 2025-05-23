@@ -134,8 +134,19 @@ await SeedDatabaseAsync(app);
 app.UseSwagger();
 app.UseSwaggerUI(options =>
 {
-    //options.SwaggerEndpoint("/swagger/v1/swagger.json", "StockTrader API V1");
-    //options.RoutePrefix = "";
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "StockTrader API V1");
+});
+
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path == "/")
+    {
+        context.Response.Redirect("/swagger/index.html");
+        return;
+
+    }
+
+    await next();
 });
 
 app.UseStaticFiles();
