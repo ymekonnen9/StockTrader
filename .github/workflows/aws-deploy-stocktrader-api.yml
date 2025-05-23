@@ -1,84 +1,90 @@
-    name: Build and Deploy StockTrader API to AWS ECS
+name: Build and Deploy StockTrader API to AWS ECS
 
-    on:
-      push:
-        branches:
-          - main # Or your primary branch
+on:
+  push:
+    branches:
+      - main
 
-    env:
-      AWS_REGION: us-east-1 # Your AWS region
-      ECR_REPOSITORY: stocktrader-api-repo # <--- UPDATE THIS LINE
-      ECS_CLUSTER_NAME: stocktrader-fargate-cluster # From your Terraform (project_name-ecs-cluster)
-      ECS_SERVICE_NAME: stocktrader-api-service     # From your Terraform (project_name-api-service)
-      ECS_TASK_DEFINITION_FAMILY: stocktrader-api-task  # From your Terraform (project_name-api-task)
-      CONTAINER_NAME: stocktrader-api-container   # From your Terraform (var.container_name)
-      DOTNET_VERSION: '8.0.x'
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: stocktrader-api-repo
+  ECS_CLUSTER_NAME: stocktrader-fargate-cluster
+  ECS_SERVICE_NAME: stocktrader-api-service
+  ECS_TASK_DEFINITION_FAMILY: stocktrader-api-task
+  CONTAINER_NAME: stocktrader-api-container
+  DOTNET_VERSION: '8.0.x'
 
-    jobs:
-      build-and-push-to-ecr:
-        name: Build and Push to ECR
-        runs-on: ubuntu-latest
-        outputs:
-          image_uri: ${{ steps.build-image.outputs.image_uri }}
-        steps:
-          - name: Checkout code
-            uses: actions/checkout@v4
+jobs:
+  build-and-push-to-ecr:
+    name: Build and Push to ECR
+    runs-on: ubuntu-latest
+    outputs:
+      image_uri: ${{ steps.build-image.outputs.image_uri }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-          - name: Configure AWS credentials
-            uses: aws-actions/configure-aws-credentials@v4
-            with:
-              aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-              aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-              aws-region: ${{ env.AWS_REGION }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-          - name: Login to Amazon ECR
-            id: login-ecr
-            uses: aws-actions/amazon-ecr-login@v2
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-          - name: Set up Docker Buildx
-            uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-          - name: Build, tag, and push image to Amazon ECR
-            id: build-image
-            env:
-              ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-              IMAGE_TAG: ${{ github.sha }}
-            run: |
-              docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f Dockerfile .
-              docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-              docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-              docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-              echo "image_uri=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f Dockerfile .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "image_uri=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      deploy-to-ecs:
-        name: Deploy to ECS
-        runs-on: ubuntu-latest
-        needs: build-and-push-to-ecr
-        steps:
-          - name: Configure AWS credentials
-            uses: aws-actions/configure-aws-credentials@v4
-            with:
-              aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-              aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-              aws-region: ${{ env.AWS_REGION }}
+  deploy-to-ecs:
+    name: Deploy to ECS
+    runs-on: ubuntu-latest
+    needs: build-and-push-to-ecr
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-          # This workflow uses aws-actions/amazon-ecs-render-task-definition
-          # which takes the latest active task definition and updates its image.
-          # It doesn't fetch and modify a local JSON file directly in these steps.
+      - name: Download current task definition
+        id: download-task-def
+        run: |
+          echo "Fetching task definition for family: ${{ env.ECS_TASK_DEFINITION_FAMILY }}"
+          aws ecs describe-task-definition --task-definition ${{ env.ECS_TASK_DEFINITION_FAMILY }} --query taskDefinition > task-definition.json
+          if [ ! -s task-definition.json ]; then
+            echo "Error: Failed to download task definition or task definition is empty."
+            exit 1
+          fi
+          echo "task_def_path=task-definition.json" >> $GITHUB_OUTPUT
 
-          - name: Fill in the new image ID in the Amazon ECS task definition
-            id: task-def
-            uses: aws-actions/amazon-ecs-render-task-definition@v1
-            with:
-              task-definition: ${{ env.ECS_TASK_DEFINITION_FAMILY }}
-              container-name: ${{ env.CONTAINER_NAME }}
-              image: ${{ needs.build-and-push-to-ecr.outputs.image_uri }}
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        id: render-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ steps.download-task-def.outputs.task_def_path }}
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ needs.build-and-push-to-ecr.outputs.image_uri }}
 
-          - name: Deploy Amazon ECS task definition
-            uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-            with:
-              task-definition: ${{ steps.task-def.outputs.task-definition }}
-              service: ${{ env.ECS_SERVICE_NAME }}
-              cluster: ${{ env.ECS_CLUSTER_NAME }}
-              wait-for-service-stability: true
-    
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE_NAME }}
+          cluster: ${{ env.ECS_CLUSTER_NAME }}
+          wait-for-service-stability: true
