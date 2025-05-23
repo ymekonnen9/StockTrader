@@ -119,7 +119,6 @@ builder.Services.AddSwaggerGen(options => // Added options for JWT in Swagger
 
 // 8. Add Authorization
 builder.Services.AddAuthorization();
-builder.Services.AddSwaggerGen();
 
 // 9. Build App
 var app = builder.Build();
