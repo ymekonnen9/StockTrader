@@ -127,32 +127,21 @@ var app = builder.Build();
 await SeedDatabaseAsync(app);
 
 
-app.UseSwagger();
-app.UseSwaggerUI(options =>
-{
-    options.SwaggerEndpoint("/swagger/v1/swagger.json", "StockTrader API V1");
-    options.RoutePrefix = string.Empty; 
-});
-
-
-if (app.Environment.IsDevelopment())
-{
-    app.UseDeveloperExceptionPage();
-}
-else
-{
-    app.UseExceptionHandler("/Error");
-    app.UseHsts();
-    // app.UseHttpsRedirection(); // Consider if ALB handles SSL termination
-}
+// Only this middleware for now for the root path test
+// if (app.Environment.IsDevelopment())
+// {
+//     app.UseDeveloperExceptionPage();
+// }
 
 app.UseRouting();
-app.UseCors("_myAllowSpecificOrigins");
-app.UseAuthentication();
-app.UseAuthorization();
 
+// Very simple root endpoint
+app.MapGet("/", () => "Hello from Fargate! Root is working.");
+
+// Your working health check
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
-app.MapControllers();
+
+// app.MapControllers(); // Only if you need controllers for /health, otherwise the MapGet above is fine
 
 app.Run();
 
