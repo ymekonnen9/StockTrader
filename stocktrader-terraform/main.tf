@@ -44,8 +44,8 @@ module "vpc" {
 # ECR Repository
 #------------------------------------------------------------------------------
 resource "aws_ecr_repository" "api_repo" {
-  name                 = "${var.project_name}-api-repo" # e.g., stocktrader-api-repo
-  image_tag_mutability = "MUTABLE"      # Or "IMMUTABLE" for stricter versioning
+  name                 = "${var.project_name}-api-repo" // This will evaluate to "stocktrader-api-repo"
+  image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
