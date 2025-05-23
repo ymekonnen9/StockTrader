@@ -1,3 +1,4 @@
+// In StockTrader.API/Program.cs
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -15,7 +16,7 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseMySql(connectionString,
-        new MySqlServerVersion(new Version(8, 0, 42)),
+        new MySqlServerVersion(new Version(8, 0, 42)), // Ensure this matches your RDS MySQL version reasonably well
         mySqlOptions => mySqlOptions.EnableRetryOnFailure(
             maxRetryCount: 5,
             maxRetryDelay: TimeSpan.FromSeconds(30),
@@ -77,9 +78,10 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("_myAllowSpecificOrigins", policyBuilder =>
     {
-        policyBuilder.WithOrigins("http://localhost:3000")
-                     .AllowAnyHeader()
-                     .AllowAnyMethod();
+        policyBuilder.WithOrigins("http://localhost:3000") // For local React dev
+                       .AllowAnyHeader()
+                       .AllowAnyMethod();
+        // TODO: Add your deployed frontend origin here when you have one
     });
 });
 
@@ -97,7 +99,7 @@ builder.Services.AddSwaggerGen(options =>
     options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
         In = Microsoft.OpenApi.Models.ParameterLocation.Header,
-        Description = "Enter 'Bearer' followed by your JWT token",
+        Description = "Enter 'Bearer' [space] and then your token in the text input below.\r\n\r\nExample: 'Bearer 12345abcdef'",
         Name = "Authorization",
         Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
@@ -119,54 +121,53 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+// 8. Add Authorization
 builder.Services.AddAuthorization();
 
-// 8. Build App
+// 9. Build App
 var app = builder.Build();
 
-Console.WriteLine("ASPNETCORE_ENVIRONMENT = " + app.Environment.EnvironmentName);
+Console.WriteLine($"ASPNETCORE_ENVIRONMENT is: {app.Environment.EnvironmentName}"); // For debugging
 
-// 9. Seed Database
+// 10. Seed Database
 await SeedDatabaseAsync(app);
 
-// ------------------- START: CORRECTED PIPELINE -------------------
-
-app.UseSwagger();
-app.UseSwaggerUI(options =>
+// 11. Configure Middleware Pipeline
+if (app.Environment.IsDevelopment())
 {
-    options.SwaggerEndpoint("/swagger/v1/swagger.json", "StockTrader API V1");
-});
-
-app.Use(async (context, next) =>
-{
-    if (context.Request.Path == "/")
+    app.UseDeveloperExceptionPage();
+    app.UseSwagger(); // Enable Swagger JSON generation
+    app.UseSwaggerUI(options => // Enable Swagger UI
     {
-        context.Response.Redirect("/swagger/index.html");
-        return;
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "StockTrader API V1");
+        // By default, RoutePrefix is "swagger", so UI will be at /swagger
+        // To serve at root: options.RoutePrefix = string.Empty;
+    });
+}
+else
+{
+    app.UseExceptionHandler("/Error"); // You would create a proper error handling page/mechanism
+    app.UseHsts();
+}
 
-    }
+// HTTPS Redirection: Usually handled by ALB if it terminates SSL.
+// If ALB forwards HTTP to Fargate, app.UseHttpsRedirection() in the container
+// might cause redirect loops if not configured carefully with forwarded headers.
+// For simplicity, if ALB handles HTTPS, you might not need this here.
+// app.UseHttpsRedirection();
 
-    await next();
-});
-
-app.UseStaticFiles();
-
-
+app.UseStaticFiles(); // If you have any static files in wwwroot
 app.UseRouting();
-
 app.UseCors("_myAllowSpecificOrigins");
-
 app.UseAuthentication();
-
 app.UseAuthorization();
-
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 app.MapControllers();
 
 app.Run();
 
-// 11. Database Seeder
+// Helper method for seeding the database
 async Task SeedDatabaseAsync(WebApplication webApp)
 {
     using var scope = webApp.Services.CreateScope();
@@ -186,7 +187,7 @@ async Task SeedDatabaseAsync(WebApplication webApp)
             await context.Database.MigrateAsync();
             logger.LogInformation("<<<<< Migrations applied successfully. >>>>>");
 
-            // Uncomment if seeding is needed
+            // Uncomment if seeding is needed and DataSeeder is implemented
             // var seeder = services.GetRequiredService<DataSeeder>();
             // logger.LogInformation("Seeding initial data...");
             // await seeder.SeedAsync();
