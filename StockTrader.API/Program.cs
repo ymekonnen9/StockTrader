@@ -1,18 +1,18 @@
-// In StockTrader.API/Program.cs
-// using Microsoft.AspNetCore.Authentication.JwtBearer; // Keep if AddAuthentication is kept for AddControllers
-// using Microsoft.AspNetCore.Identity;
+// StockTrader.API/Program.cs
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-// using Microsoft.IdentityModel.Tokens;
-// using StockTrader.Application.Configuration;
-// using StockTrader.Application.Services;
-// using StockTrader.Domain.Entities;
+using Microsoft.IdentityModel.Tokens;
+using StockTrader.Application.Configuration;
+using StockTrader.Application.Services;
+using StockTrader.Domain.Entities;
 using StockTrader.Infrastructure.Data;
-// using StockTrader.Infrastructure.Services;
-// using System.Text;
+using StockTrader.Infrastructure.Services;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Minimal services needed for controllers and DB context (if controllers use it, TestController doesn't yet)
+// --- DATABASE ---
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseMySql(connectionString,
@@ -24,86 +24,98 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         )
     ));
 
+// --- SERVICES ---
+builder.Services.AddScoped<IStockService, StockService>();
+builder.Services.AddScoped<IPortfolioService, PortfolioService>();
+builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<ITokenService, JwtTokenService>();
+builder.Services.AddScoped<DataSeeder>();
 
+// --- CORS ---
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("_myAllowSpecificOrigins", policy =>
+    {
+        policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+    });
+});
 
-
-
+// --- CONTROLLERS ---
 builder.Services.AddControllers();
-// builder.Services.AddEndpointsApiExplorer(); // Not needed for this direct controller test
+builder.Services.AddEndpointsApiExplorer();
+
+// --- SWAGGER ---
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddSwaggerGen();
+}
+
+// --- AUTHENTICATION & IDENTITY (Uncomment when needed) ---
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>();
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
+        };
+    });
+builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
 Console.WriteLine($"ASPNETCORE_ENVIRONMENT is: {app.Environment.EnvironmentName}");
-// await SeedDatabaseAsync(app); // Keep seeding commented out for this test
 
-if (app.Environment.IsDevelopment()) { app.UseDeveloperExceptionPage(); }
+// --- MIDDLEWARE PIPELINE ---
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+else
+{
+    app.UseExceptionHandler("/Error");
+    // app.UseHsts(); // Optional if not using HTTPS on production yet
+}
 
+// Fix for ALB HTTPS forwarding
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
+                       Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+});
+
+app.UseHttpsRedirection();
 app.UseRouting();
+
+app.UseCors("_myAllowSpecificOrigins");
+
+// app.UseAuthentication(); // Enable if using JWT or Identity
+// app.UseAuthorization();
+
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
-app.MapControllers(); // This maps your controller routes
+app.MapControllers();
+
+await SeedDatabaseAsync(app);
 
 app.Run();
 
-
-
-
-
-//builder.Services.AddControllers(); // Registers controller services
-// builder.Services.AddEndpointsApiExplorer(); // Not strictly needed if not using Swagger for this test
-// builder.Services.AddSwaggerGen(); // Disable Swagger for this minimal test
-
-// builder.Services.AddIdentity<ApplicationUser, IdentityRole>() ... // Disable Identity for this minimal test
-// builder.Services.AddAuthentication(...) ... // Disable AuthN/AuthZ for this minimal test
-// builder.Services.AddAuthorization();
-
-// builder.Services.AddScoped<ITokenService, JwtTokenService>(); // Disable other services for this test
-// builder.Services.AddScoped<IStockService, StockService>();
-// builder.Services.AddScoped<IPortfolioService, PortfolioService>();
-// builder.Services.AddScoped<IOrderService, OrderService>();
-// builder.Services.AddScoped<DataSeeder>();
-// builder.Services.AddCors(...);
-
-
-//var app = builder.Build();
-
-//Console.WriteLine($"ASPNETCORE_ENVIRONMENT is: {app.Environment.EnvironmentName}"); // For debugging
-
-// Temporarily comment out seeding to simplify startup further for this test
-// await SeedDatabaseAsync(app);
-
-// --- MINIMAL MIDDLEWARE PIPELINE ---
-//if (app.Environment.IsDevelopment())
-//{
-//    app.UseDeveloperExceptionPage();
-//}
-//else
-//{
-//    app.UseExceptionHandler("/Error");
-//    // app.UseHsts(); // Optional for this test
-//}
-
-// app.UseHttpsRedirection(); // Can be problematic behind ALB if not configured for forwarded headers
-
-//app.UseRouting();
-
-// app.UseCors("_myAllowSpecificOrigins"); // Disable CORS for this minimal test
-// app.UseAuthentication(); // Disable for this minimal test
-// app.UseAuthorization(); // Disable for this minimal test
-
-//app.MapGet("/health", () => Results.Ok(new { status = "healthy" })); // Keep your health check
-//app.MapControllers(); // This maps your controller routes
-
-//app.Run();
-
-
-// Keep SeedDatabaseAsync method definition, but it won't be called if line above is commented out.
+// --- DATABASE SEEDING ---
 async Task SeedDatabaseAsync(WebApplication webApp)
 {
-    // ... (your existing seed method)
     using var scope = webApp.Services.CreateScope();
     var services = scope.ServiceProvider;
     var logger = services.GetRequiredService<ILogger<Program>>();
     var context = services.GetRequiredService<ApplicationDbContext>();
+
     try
     {
         logger.LogInformation("<<<<< Checking DB connection with CanConnectAsync... >>>>>");
