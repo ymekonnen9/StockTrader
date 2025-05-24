@@ -80,7 +80,7 @@ builder.Services.AddSwaggerGen();
 var app = builder.Build();
 
 // Optional: Seed the database
-// await SeedDatabaseAsync(app);
+await SeedDatabaseAsync(app);
 
 // Middleware Pipeline
 if (app.Environment.IsDevelopment())
@@ -128,29 +128,29 @@ app.MapGet("/di-test", (IServiceProvider services, ILogger<Program> logger) =>
 });
 
 app.Run();
-//async Task SeedDatabaseAsync(WebApplication webApp)
-//{
-//    using (var scope = webApp.Services.CreateScope())
-//    {
-//        var services = scope.ServiceProvider;
-//        var logger = services.GetRequiredService<ILogger<Program>>();
-//        try
-//        {
-//            var context = services.GetRequiredService<ApplicationDbContext>();
-//            var seeder = services.GetRequiredService<DataSeeder>();
+async Task SeedDatabaseAsync(WebApplication webApp)
+{
+    using (var scope = webApp.Services.CreateScope())
+    {
+        var services = scope.ServiceProvider;
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        try
+        {
+            var context = services.GetRequiredService<ApplicationDbContext>();
+            var seeder = services.GetRequiredService<DataSeeder>();
 
-//            logger.LogInformation("Applying database migrations (currently disabled for troubleshooting)...");
-//            // Temporarily disable migration for troubleshooting
-//            // await context.Database.MigrateAsync(); 
+            logger.LogInformation("Applying database migrations (currently disabled for troubleshooting)...");
+            //Temporarily disable migration for troubleshooting
+            await context.Database.MigrateAsync();
 
-//            logger.LogInformation("Attempting to seed initial data (currently disabled for troubleshooting)...");
-//            // Temporarily disable seeding for troubleshooting
-//            // await seeder.SeedAsync(); 
-//            logger.LogInformation("Initial data seeding attempt completed (currently disabled).");
-//        }
-//        catch (Exception ex)
-//        {
-//            logger.LogError(ex, "An error occurred during database migration or seeding (currently disabled).");
-//        }
-//    }
-//}
+           logger.LogInformation("Attempting to seed initial data (currently disabled for troubleshooting)...");
+            //Temporarily disable seeding for troubleshooting
+            await seeder.SeedAsync();
+           logger.LogInformation("Initial data seeding attempt completed (currently disabled).");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "An error occurred during database migration or seeding (currently disabled).");
+        }
+    }
+}
