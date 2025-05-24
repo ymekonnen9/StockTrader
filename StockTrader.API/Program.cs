@@ -93,7 +93,16 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+if (!builder.Environment.IsDevelopment() && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ECS_CONTAINER_METADATA_URI")))
+{
+    // Only apply HSTS and HTTPS Redirection if not in Development and not running in ECS (where ALB handles HTTPS)
+    // Or, more simply, if your ALB always handles HTTPS termination for production:
+    // app.UseHttpsRedirection(); // Might be okay if health checks are also HTTPS, but usually they are HTTP.
+}
+else if (builder.Environment.IsProduction())
+{
+    app.UseHttpsRedirection();
+}
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapGet("/health", () => Results.Ok("OK"));
