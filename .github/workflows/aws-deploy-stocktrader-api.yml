@@ -12,7 +12,7 @@ env:
   ECS_SERVICE_NAME: stocktrader-api-service
   ECS_TASK_DEFINITION_FAMILY: stocktrader-api-task
   CONTAINER_NAME: stocktrader-api-container
-  DOTNET_VERSION: '8.0.x'
+  DOTNET_VERSION: '8.0.x' # Used for .NET setup, not directly for AWS resource names
 
 jobs:
   build-and-push-to-ecr:
@@ -53,7 +53,7 @@ jobs:
   deploy-to-ecs:
     name: Deploy to ECS
     runs-on: ubuntu-latest
-    needs: build-and-push-to-ecr
+    needs: build-and-push-to-ecr # Ensures this job runs after the image is pushed
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -66,9 +66,11 @@ jobs:
         id: download-task-def
         run: |
           echo "Fetching task definition for family: ${{ env.ECS_TASK_DEFINITION_FAMILY }}"
+          # Fetches the LATEST ACTIVE task definition for the specified family
           aws ecs describe-task-definition --task-definition ${{ env.ECS_TASK_DEFINITION_FAMILY }} --query taskDefinition > task-definition.json
           if [ ! -s task-definition.json ]; then
             echo "Error: Failed to download task definition or task definition is empty."
+            echo "Ensure the task definition family '${{ env.ECS_TASK_DEFINITION_FAMILY }}' exists and has at least one active revision."
             exit 1
           fi
           echo "task_def_path=task-definition.json" >> $GITHUB_OUTPUT
@@ -84,7 +86,7 @@ jobs:
       - name: Deploy Amazon ECS task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
-          task-definition: ${{ steps.render-task-def.outputs.task-definition }}
+          task-definition: ${{ steps.render-task-def.outputs.task-definition }} # This is the path to the modified task definition file
           service: ${{ env.ECS_SERVICE_NAME }}
           cluster: ${{ env.ECS_CLUSTER_NAME }}
           wait-for-service-stability: true
