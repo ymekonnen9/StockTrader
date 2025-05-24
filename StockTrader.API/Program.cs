@@ -10,6 +10,10 @@ using StockTrader.Infrastructure.Services;
 using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 
+builder.WebHost.ConfigureKestrel(opts =>
+{
+    opts.ListenAnyIP(80);
+});
 // Configure DB Context
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
@@ -92,6 +96,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapGet("/health", () => Results.Ok("OK"));
 
 app.MapControllers();
 
