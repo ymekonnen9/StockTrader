@@ -83,7 +83,6 @@ _ReSharper*/
 *.orig
 
 # Entity Framework
-Migrations/
 
 # SQLite local DBs
 *.db
