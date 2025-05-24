@@ -12,7 +12,7 @@ env:
   ECS_SERVICE_NAME: stocktrader-api-service
   ECS_TASK_DEFINITION_FAMILY: stocktrader-api-task
   CONTAINER_NAME: stocktrader-api-container
-  DOTNET_VERSION: '8.0.x' # Used for .NET setup, not directly for AWS resource names
+  DOTNET_VERSION: '8.0.x'
 
 jobs:
   build-and-push-to-ecr:
@@ -50,7 +50,7 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
           echo "image_uri=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-deploy-to-ecs:
+  deploy-to-ecs:
     name: Deploy to ECS
     runs-on: ubuntu-latest
     needs: build-and-push-to-ecr
@@ -66,12 +66,9 @@ deploy-to-ecs:
         run: |
           aws ecs describe-task-definition --task-definition ${{ env.ECS_TASK_DEFINITION_FAMILY }} --query taskDefinition > task-definition.json
 
-      # ✅ NEW STEP ADDED HERE
       - name: Clean up the task definition file
         id: clean-task-def
         run: |
-          # The jq tool is pre-installed on GitHub-hosted runners
-          # This command removes keys that are not valid for registering a new task definition
           jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy, .enableFaultInjection)' task-definition.json > clean-task-definition.json
           echo "task_def_path=clean-task-definition.json" >> $GITHUB_OUTPUT
 
@@ -79,7 +76,6 @@ deploy-to-ecs:
         id: render-task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          # Use the output from the cleanup step
           task-definition: ${{ steps.clean-task-def.outputs.task_def_path }}
           container-name: ${{ env.CONTAINER_NAME }}
           image: ${{ needs.build-and-push-to-ecr.outputs.image_uri }}
