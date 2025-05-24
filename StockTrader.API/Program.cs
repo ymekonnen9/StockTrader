@@ -8,21 +8,23 @@ using StockTrader.Domain.Entities;
 using StockTrader.Infrastructure.Data;
 using StockTrader.Infrastructure.Services;
 using System.Text;
-
 var builder = WebApplication.CreateBuilder(args);
 
+// Configure DB Context
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseMySql(connectionString,
-        new MySqlServerVersion(new Version(8, 0, 42)), // Ensure this version matches your MySQL server
+        new MySqlServerVersion(new Version(8, 0, 42)),
         mySqlOptions => mySqlOptions.EnableRetryOnFailure(
             maxRetryCount: 5,
             maxRetryDelay: TimeSpan.FromSeconds(30),
             errorNumbersToAdd: null
         )
-    ));
+    )
+);
 
+// Configure Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
     options.Password.RequireDigit = true;
@@ -31,12 +33,14 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     options.Password.RequireUppercase = true;
     options.Password.RequireLowercase = true;
     options.User.RequireUniqueEmail = true;
+})
+.AddEntityFrameworkStores<ApplicationDbContext>()
+.AddDefaultTokenProviders();
 
-}).AddEntityFrameworkStores<ApplicationDbContext>().AddDefaultTokenProviders();
-
+// Configure JWT Authentication
 var jwtSettings = new JwtSettings();
 builder.Configuration.Bind(JwtSettings.SectionName, jwtSettings);
-builder.Services.AddSingleton(jwtSettings); // Make JwtSettings available for injection
+builder.Services.AddSingleton(jwtSettings);
 
 builder.Services.AddAuthentication(options =>
 {
@@ -48,82 +52,105 @@ builder.Services.AddAuthentication(options =>
 {
     options.SaveToken = true;
     options.RequireHttpsMetadata = builder.Environment.IsProduction();
-    options.TokenValidationParameters = new TokenValidationParameters()
+    options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
         ClockSkew = TimeSpan.Zero,
-
         ValidIssuer = jwtSettings.Issuer,
         ValidAudience = jwtSettings.Audience,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key))
     };
 });
 
-// Add services to the container.
+// Register Services
+builder.Services.AddAuthorization();
+builder.Services.AddScoped<DataSeeder>();
+builder.Services.AddScoped<IStockService, StockService>();
+builder.Services.AddScoped<IPortfolioService, PortfolioService>();
+builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<ITokenService, JwtTokenService>();
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddAuthorization(); // Ensure Authorization services are added
-builder.Services.AddScoped<DataSeeder>(); // Still needed if you re-enable seeding
-builder.Services.AddScoped<IStockService, StockService>();
-builder.Services.AddScoped<IPortfolioService, PortfolioService>();
-builder.Services.AddScoped<IOrderService, OrderService>();
-
 var app = builder.Build();
 
-// Temporarily disable database seeding and migration for troubleshooting
-// await SeedDatabaseAsync(app); 
+// Optional: Seed the database
+// await SeedDatabaseAsync(app);
 
-// Configure the HTTP request pipeline.
+// Middleware Pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// It's generally good practice to have UseRouting() before UseAuthentication() and UseAuthorization()
-// However, in .NET 6+ minimal APIs, this is often handled implicitly.
-// If you encounter issues, explicitly adding app.UseRouting(); might be necessary.
-
-app.UseHttpsRedirection(); // Important for production
-
-// Ensure Authentication middleware is added before Authorization
-app.UseAuthentication(); // This was missing and is crucial for [Authorize] to work
+app.UseHttpsRedirection();
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
-app.Run();
-
-// SeedDatabaseAsync is kept for when you want to re-enable it
-async Task SeedDatabaseAsync(WebApplication webApp)
+// Diagnostic Endpoint
+app.MapGet("/di-test", (IServiceProvider services, ILogger<Program> logger) =>
 {
-    using (var scope = webApp.Services.CreateScope())
+    logger.LogInformation("--- Starting DI Test ---");
+    try
     {
-        var services = scope.ServiceProvider;
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        try
+        var dbContext = services.GetService<ApplicationDbContext>();
+        if (dbContext == null)
         {
-            var context = services.GetRequiredService<ApplicationDbContext>();
-            var seeder = services.GetRequiredService<DataSeeder>();
-
-            logger.LogInformation("Applying database migrations (currently disabled for troubleshooting)...");
-            // Temporarily disable migration for troubleshooting
-            // await context.Database.MigrateAsync(); 
-
-            logger.LogInformation("Attempting to seed initial data (currently disabled for troubleshooting)...");
-            // Temporarily disable seeding for troubleshooting
-            // await seeder.SeedAsync(); 
-            logger.LogInformation("Initial data seeding attempt completed (currently disabled).");
+            logger.LogError("DI TEST FAILED: ApplicationDbContext is null.");
+            return Results.Problem("Failed to resolve ApplicationDbContext.");
         }
-        catch (Exception ex)
+        logger.LogInformation("DI TEST SUCCESS: ApplicationDbContext resolved successfully.");
+
+        var userManager = services.GetService<UserManager<ApplicationUser>>();
+        if (userManager == null)
         {
-            logger.LogError(ex, "An error occurred during database migration or seeding (currently disabled).");
+            logger.LogError("DI TEST FAILED: UserManager<ApplicationUser> is null.");
+            return Results.Problem("Failed to resolve UserManager.");
         }
+        logger.LogInformation("DI TEST SUCCESS: UserManager resolved successfully.");
+
+        logger.LogInformation("--- DI Test Completed Successfully ---");
+        return Results.Ok("All tested services were resolved successfully.");
     }
-}
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "DI TEST FAILED: An exception was thrown during service resolution.");
+        return Results.Problem($"An exception occurred: {ex.Message}");
+    }
+});
+
+app.Run();
+//async Task SeedDatabaseAsync(WebApplication webApp)
+//{
+//    using (var scope = webApp.Services.CreateScope())
+//    {
+//        var services = scope.ServiceProvider;
+//        var logger = services.GetRequiredService<ILogger<Program>>();
+//        try
+//        {
+//            var context = services.GetRequiredService<ApplicationDbContext>();
+//            var seeder = services.GetRequiredService<DataSeeder>();
+
+//            logger.LogInformation("Applying database migrations (currently disabled for troubleshooting)...");
+//            // Temporarily disable migration for troubleshooting
+//            // await context.Database.MigrateAsync(); 
+
+//            logger.LogInformation("Attempting to seed initial data (currently disabled for troubleshooting)...");
+//            // Temporarily disable seeding for troubleshooting
+//            // await seeder.SeedAsync(); 
+//            logger.LogInformation("Initial data seeding attempt completed (currently disabled).");
+//        }
+//        catch (Exception ex)
+//        {
+//            logger.LogError(ex, "An error occurred during database migration or seeding (currently disabled).");
+//        }
+//    }
+//}
