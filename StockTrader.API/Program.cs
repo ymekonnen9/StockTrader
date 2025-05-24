@@ -15,7 +15,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseMySql(connectionString,
-        new MySqlServerVersion(new Version(8, 0, 42)),
+        new MySqlServerVersion(new Version(8, 0, 42)), // Ensure this version matches your MySQL server
         mySqlOptions => mySqlOptions.EnableRetryOnFailure(
             maxRetryCount: 5,
             maxRetryDelay: TimeSpan.FromSeconds(30),
@@ -36,7 +36,7 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 
 var jwtSettings = new JwtSettings();
 builder.Configuration.Bind(JwtSettings.SectionName, jwtSettings);
-builder.Services.AddSingleton(jwtSettings);
+builder.Services.AddSingleton(jwtSettings); // Make JwtSettings available for injection
 
 builder.Services.AddAuthentication(options =>
 {
@@ -46,37 +46,38 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    options.SaveToken = true; // Saves the token in the HttpContext
-    options.RequireHttpsMetadata = builder.Environment.IsProduction(); // Only require HTTPS in production for easier local dev with HTTP if needed
+    options.SaveToken = true;
+    options.RequireHttpsMetadata = builder.Environment.IsProduction();
     options.TokenValidationParameters = new TokenValidationParameters()
     {
         ValidateIssuer = true,
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ClockSkew = TimeSpan.Zero, // Remove default 5-minute clock skew
+        ClockSkew = TimeSpan.Zero,
 
         ValidIssuer = jwtSettings.Issuer,
         ValidAudience = jwtSettings.Audience,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key))
     };
 });
+
 // Add services to the container.
 builder.Services.AddScoped<ITokenService, JwtTokenService>();
-//builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-//builder.Services.AddAuthentication();
-builder.Services.AddAuthorization();
-builder.Services.AddScoped<DataSeeder>();
+builder.Services.AddAuthorization(); // Ensure Authorization services are added
+builder.Services.AddScoped<DataSeeder>(); // Still needed if you re-enable seeding
 builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddScoped<IPortfolioService, PortfolioService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
+
 var app = builder.Build();
-await SeedDatabaseAsync(app);
+
+// Temporarily disable database seeding and migration for troubleshooting
+// await SeedDatabaseAsync(app); 
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -85,16 +86,21 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// It's generally good practice to have UseRouting() before UseAuthentication() and UseAuthorization()
+// However, in .NET 6+ minimal APIs, this is often handled implicitly.
+// If you encounter issues, explicitly adding app.UseRouting(); might be necessary.
 
+app.UseHttpsRedirection(); // Important for production
+
+// Ensure Authentication middleware is added before Authorization
+app.UseAuthentication(); // This was missing and is crucial for [Authorize] to work
 app.UseAuthorization();
 
 app.MapControllers();
 
 app.Run();
 
-
-
+// SeedDatabaseAsync is kept for when you want to re-enable it
 async Task SeedDatabaseAsync(WebApplication webApp)
 {
     using (var scope = webApp.Services.CreateScope())
@@ -106,17 +112,18 @@ async Task SeedDatabaseAsync(WebApplication webApp)
             var context = services.GetRequiredService<ApplicationDbContext>();
             var seeder = services.GetRequiredService<DataSeeder>();
 
-            logger.LogInformation("Applying database migrations...");
-            await context.Database.MigrateAsync();
+            logger.LogInformation("Applying database migrations (currently disabled for troubleshooting)...");
+            // Temporarily disable migration for troubleshooting
+            // await context.Database.MigrateAsync(); 
 
-            logger.LogInformation("Attempting to seed initial data...");
-            await seeder.SeedAsync();
-            logger.LogInformation("Initial data seeding attempt completed.");
+            logger.LogInformation("Attempting to seed initial data (currently disabled for troubleshooting)...");
+            // Temporarily disable seeding for troubleshooting
+            // await seeder.SeedAsync(); 
+            logger.LogInformation("Initial data seeding attempt completed (currently disabled).");
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "An error occurred during database migration or seeding.");
-
+            logger.LogError(ex, "An error occurred during database migration or seeding (currently disabled).");
         }
     }
 }
