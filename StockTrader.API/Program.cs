@@ -24,7 +24,31 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         )
     ));
 
-builder.Services.AddControllers(); // Registers controller services
+
+
+
+
+builder.Services.AddControllers();
+// builder.Services.AddEndpointsApiExplorer(); // Not needed for this direct controller test
+
+var app = builder.Build();
+
+Console.WriteLine($"ASPNETCORE_ENVIRONMENT is: {app.Environment.EnvironmentName}");
+// await SeedDatabaseAsync(app); // Keep seeding commented out for this test
+
+if (app.Environment.IsDevelopment()) { app.UseDeveloperExceptionPage(); }
+
+app.UseRouting();
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+app.MapControllers(); // This maps your controller routes
+
+app.Run();
+
+
+
+
+
+//builder.Services.AddControllers(); // Registers controller services
 // builder.Services.AddEndpointsApiExplorer(); // Not strictly needed if not using Swagger for this test
 // builder.Services.AddSwaggerGen(); // Disable Swagger for this minimal test
 
@@ -40,36 +64,36 @@ builder.Services.AddControllers(); // Registers controller services
 // builder.Services.AddCors(...);
 
 
-var app = builder.Build();
+//var app = builder.Build();
 
-Console.WriteLine($"ASPNETCORE_ENVIRONMENT is: {app.Environment.EnvironmentName}"); // For debugging
+//Console.WriteLine($"ASPNETCORE_ENVIRONMENT is: {app.Environment.EnvironmentName}"); // For debugging
 
 // Temporarily comment out seeding to simplify startup further for this test
 // await SeedDatabaseAsync(app);
 
 // --- MINIMAL MIDDLEWARE PIPELINE ---
-if (app.Environment.IsDevelopment())
-{
-    app.UseDeveloperExceptionPage();
-}
-else
-{
-    app.UseExceptionHandler("/Error");
-    // app.UseHsts(); // Optional for this test
-}
+//if (app.Environment.IsDevelopment())
+//{
+//    app.UseDeveloperExceptionPage();
+//}
+//else
+//{
+//    app.UseExceptionHandler("/Error");
+//    // app.UseHsts(); // Optional for this test
+//}
 
 // app.UseHttpsRedirection(); // Can be problematic behind ALB if not configured for forwarded headers
 
-app.UseRouting();
+//app.UseRouting();
 
 // app.UseCors("_myAllowSpecificOrigins"); // Disable CORS for this minimal test
 // app.UseAuthentication(); // Disable for this minimal test
 // app.UseAuthorization(); // Disable for this minimal test
 
-app.MapGet("/health", () => Results.Ok(new { status = "healthy" })); // Keep your health check
-app.MapControllers(); // This maps your controller routes
+//app.MapGet("/health", () => Results.Ok(new { status = "healthy" })); // Keep your health check
+//app.MapControllers(); // This maps your controller routes
 
-app.Run();
+//app.Run();
 
 
 // Keep SeedDatabaseAsync method definition, but it won't be called if line above is commented out.
