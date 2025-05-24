@@ -7,7 +7,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}         # your 12-digit AWS account ID
+  ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}      # your 12-digit AWS account ID
   CLUSTER_NAME: stocktrader-cluster
   SERVICE_NAME: stocktrader-api-service
   ECR_REPO: stocktrader-api-repo
@@ -34,15 +34,15 @@ jobs:
           terraform_version: 1.5.0
 
       - name: Terraform Init
-        working-directory: infra
+        working-directory: stocktrader-terraform
         run: terraform init
 
       - name: Terraform Plan
-        working-directory: infra
+        working-directory: stocktrader-terraform
         run: terraform plan -var-file="terraform.tfvars"
 
       - name: Terraform Apply
-        working-directory: infra
+        working-directory: stocktrader-terraform
         run: terraform apply -var-file="terraform.tfvars" -auto-approve
 
   deploy:
