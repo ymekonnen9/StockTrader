@@ -1,4 +1,3 @@
-// StockTrader.API/Program.cs
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -12,8 +11,8 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- DATABASE ---
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseMySql(connectionString,
         new MySqlServerVersion(new Version(8, 0, 42)),
@@ -24,117 +23,100 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         )
     ));
 
-// --- SERVICES ---
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+{
+    options.Password.RequireDigit = true;
+    options.Password.RequiredLength = 8;
+    options.Password.RequireNonAlphanumeric = false;
+    options.Password.RequireUppercase = true;
+    options.Password.RequireLowercase = true;
+    options.User.RequireUniqueEmail = true;
+
+}).AddEntityFrameworkStores<ApplicationDbContext>().AddDefaultTokenProviders();
+
+var jwtSettings = new JwtSettings();
+builder.Configuration.Bind(JwtSettings.SectionName, jwtSettings);
+builder.Services.AddSingleton(jwtSettings);
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.SaveToken = true; // Saves the token in the HttpContext
+    options.RequireHttpsMetadata = builder.Environment.IsProduction(); // Only require HTTPS in production for easier local dev with HTTP if needed
+    options.TokenValidationParameters = new TokenValidationParameters()
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ClockSkew = TimeSpan.Zero, // Remove default 5-minute clock skew
+
+        ValidIssuer = jwtSettings.Issuer,
+        ValidAudience = jwtSettings.Audience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key))
+    };
+});
+// Add services to the container.
+builder.Services.AddScoped<ITokenService, JwtTokenService>();
+//builder.Services.AddScoped<IStockService, StockService>();
+builder.Services.AddControllers();
+// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+//builder.Services.AddAuthentication();
+builder.Services.AddAuthorization();
+builder.Services.AddScoped<DataSeeder>();
 builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddScoped<IPortfolioService, PortfolioService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
-builder.Services.AddScoped<ITokenService, JwtTokenService>();
-builder.Services.AddScoped<DataSeeder>();
-
-// --- CORS ---
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("_myAllowSpecificOrigins", policy =>
-    {
-        policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
-    });
-});
-
-// --- CONTROLLERS ---
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-
-// --- SWAGGER ---
-if (builder.Environment.IsDevelopment())
-{
-    builder.Services.AddSwaggerGen();
-}
-
-// --- AUTHENTICATION & IDENTITY (Uncomment when needed) ---
-builder.Services.AddIdentity<ApplicationUser, IdentityRole>();
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
-        };
-    });
-builder.Services.AddAuthorization();
-
 var app = builder.Build();
+await SeedDatabaseAsync(app);
 
-Console.WriteLine($"ASPNETCORE_ENVIRONMENT is: {app.Environment.EnvironmentName}");
-
-// --- MIDDLEWARE PIPELINE ---
+// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.UseDeveloperExceptionPage();
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-else
-{
-    app.UseExceptionHandler("/Error");
-    // app.UseHsts(); // Optional if not using HTTPS on production yet
-}
-
-// Fix for ALB HTTPS forwarding
-app.UseForwardedHeaders(new ForwardedHeadersOptions
-{
-    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
-                       Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
-});
 
 app.UseHttpsRedirection();
-app.UseRouting();
 
-app.UseCors("_myAllowSpecificOrigins");
+app.UseAuthorization();
 
-// app.UseAuthentication(); // Enable if using JWT or Identity
-// app.UseAuthorization();
-
-app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 app.MapControllers();
-
-await SeedDatabaseAsync(app);
 
 app.Run();
 
-// --- DATABASE SEEDING ---
+
+
 async Task SeedDatabaseAsync(WebApplication webApp)
 {
-    using var scope = webApp.Services.CreateScope();
-    var services = scope.ServiceProvider;
-    var logger = services.GetRequiredService<ILogger<Program>>();
-    var context = services.GetRequiredService<ApplicationDbContext>();
-
-    try
+    using (var scope = webApp.Services.CreateScope())
     {
-        logger.LogInformation("<<<<< Checking DB connection with CanConnectAsync... >>>>>");
-        var canConnect = await context.Database.CanConnectAsync();
-
-        if (canConnect)
+        var services = scope.ServiceProvider;
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        try
         {
-            logger.LogInformation("<<<<< SUCCESS: Connected to DB! >>>>>");
-            logger.LogInformation("Applying migrations...");
+            var context = services.GetRequiredService<ApplicationDbContext>();
+            var seeder = services.GetRequiredService<DataSeeder>();
+
+            logger.LogInformation("Applying database migrations...");
             await context.Database.MigrateAsync();
-            logger.LogInformation("<<<<< Migrations applied successfully. >>>>>");
+
+            logger.LogInformation("Attempting to seed initial data...");
+            await seeder.SeedAsync();
+            logger.LogInformation("Initial data seeding attempt completed.");
         }
-        else
+        catch (Exception ex)
         {
-            logger.LogError("<<<<< FAILED: Cannot connect to DB. >>>>>");
+            logger.LogError(ex, "An error occurred during database migration or seeding.");
+
         }
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "<<<<< EXCEPTION during DB initialization. >>>>>");
     }
 }
