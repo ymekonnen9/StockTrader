@@ -15,30 +15,20 @@ provider "aws" {
 #------------------------------------------------------------------------------
 # Networking (VPC, Subnets, Gateways, Route Tables)
 #------------------------------------------------------------------------------
-module "vpc" {
-  source  = "terraform-aws-modules/vpc/aws"
-  version = "~> 5.0" # Use a recent version of the VPC module
 
-  name = "${var.project_name}-vpc"
-  cidr = var.vpc_cidr
+// look up the AWS‐managed “default” VPC
+data "aws_vpc" "default" {
+  default = true
+}
 
-  azs             = var.vpc_availability_zones
-  private_subnets = var.vpc_private_subnets
-  public_subnets  = var.vpc_public_subnets
-
-  enable_nat_gateway     = true # Set to true if your private subnets need outbound internet
-  single_nat_gateway     = true # For cost savings in dev/test
-  one_nat_gateway_per_az = false # For cost savings in dev/test
-
-  enable_dns_hostnames = true
-  enable_dns_support   = true
-
-  tags = {
-    Terraform   = "true"
-    Environment = var.environment
-    Project     = var.project_name
+// grab _all_ subnets in that VPC
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [ data.aws_vpc.default.id ]
   }
 }
+
 
 #------------------------------------------------------------------------------
 # ECR Repository
@@ -62,7 +52,7 @@ resource "aws_ecr_repository" "api_repo" {
 #------------------------------------------------------------------------------
 resource "aws_db_subnet_group" "rds_subnet_group" {
   name       = "${var.project_name}-rds-subnet-group"
-  subnet_ids = module.vpc.private_subnets # RDS should be in private subnets
+  subnet_ids = data.aws_subnets.default.ids # RDS should be in private subnets
 
   tags = {
     Name        = "${var.project_name}-rds-subnet-group"
@@ -74,7 +64,7 @@ resource "aws_db_subnet_group" "rds_subnet_group" {
 resource "aws_security_group" "rds_sg" {
   name        = "${var.project_name}-rds-sg"
   description = "Allow MySQL traffic from ECS tasks"
-  vpc_id      = module.vpc.vpc_id
+  vpc_id      = data.aws_vpc.default.id
 
   # Ingress rule will be added later to allow from ECS task SG
   # Egress: Allow all outbound by default (usually fine)
@@ -141,7 +131,7 @@ resource "aws_ecs_cluster" "main_cluster" {
 resource "aws_security_group" "alb_sg" {
   name        = "${var.project_name}-alb-sg"
   description = "Allow HTTP/HTTPS traffic to ALB"
-  vpc_id      = module.vpc.vpc_id
+  vpc_id      = data.aws_vpc.default.id
 
   ingress {
     description      = "HTTP from Internet"
@@ -180,7 +170,7 @@ resource "aws_lb" "main_alb" {
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb_sg.id]
-  subnets            = module.vpc.public_subnets # ALB needs to be in public subnets
+  subnets            = data.aws_subnets.default.ids # ALB needs to be in public subnets
 
   enable_deletion_protection = false # For dev/test; true for production
 
@@ -195,7 +185,7 @@ resource "aws_lb_target_group" "api_tg" {
   name        = "${var.project_name}-api-tg" # e.g., stocktrader-api-tg
   port        = var.container_port
   protocol    = "HTTP"
-  vpc_id      = module.vpc.vpc_id
+  vpc_id      = data.aws_vpc.default.id
   target_type = "ip" # For Fargate
 
   health_check {
@@ -234,7 +224,7 @@ resource "aws_lb_listener" "http_listener" {
 resource "aws_security_group" "ecs_tasks_sg" {
   name        = "${var.project_name}-ecs-tasks-sg"
   description = "Allow traffic to ECS tasks from ALB"
-  vpc_id      = module.vpc.vpc_id
+  vpc_id      = data.aws_vpc.default.id
 
   ingress {
     description     = "Allow traffic from ALB on container port"
@@ -365,7 +355,7 @@ resource "aws_ecs_service" "api_service" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets          = module.vpc.private_subnets # Run tasks in private subnets for security
+    subnets          = data.aws_subnets.default.ids # Run tasks in private subnets for security
     security_groups  = [aws_security_group.ecs_tasks_sg.id]
     assign_public_ip = false # Tasks in private subnets don't need public IPs if behind ALB in public subnets
   }

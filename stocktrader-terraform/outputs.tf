@@ -1,16 +1,11 @@
 output "vpc_id" {
-  description = "The ID of the VPC"
-  value       = module.vpc.vpc_id
+  description = "The ID of the default VPC"
+  value       = data.aws_vpc.default.id
 }
 
-output "public_subnet_ids" {
-  description = "List of IDs of public subnets"
-  value       = module.vpc.public_subnets
-}
-
-output "private_subnet_ids" {
-  description = "List of IDs of private subnets"
-  value       = module.vpc.private_subnets
+output "subnet_ids" {
+  description = "List of IDs of the default VPC subnets"
+  value       = data.aws_subnets.default.ids
 }
 
 output "ecr_repository_url" {
