@@ -8,7 +8,7 @@ on:
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: stocktrader-api-repo
-  ECS_CLUSTER_NAME: stocktrader-fargate-cluster
+  ECS_CLUSTER_NAME: stocktrader-ecs-cluster
   ECS_SERVICE_NAME: stocktrader-api-service
   ECS_TASK_DEFINITION_FAMILY: stocktrader-api-task
   CONTAINER_NAME: stocktrader-api-container
