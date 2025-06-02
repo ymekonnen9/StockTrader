@@ -39,11 +39,6 @@ This application is built with a focus on Clean Architecture principles to ensur
         * Orders (`Orders`) - *to record buy/sell transactions.*
         * Payment Transactions (`PaymentTransactions`) - *for tracking fund deposits.*
     * Initial data seeding for roles, a default admin user, and sample stocks.
-* **Payment Integration (Sandbox/Test Mode for Adding Funds):**
-    * Integration with **Stripe Checkout** (in test mode) to simulate adding funds to a user's cash balance.
-    * Backend API endpoint (`POST /api/payments/create-checkout-session`) to create Stripe Checkout Sessions.
-    * Backend webhook endpoint (`POST /api/payments/webhook` or similar) to listen for Stripe events (e.g., `checkout.session.completed`) and update user balances accordingly.
-    * Secure handling of webhook events using signature verification.
 * **Order Infrastructure (Foundation Laid):**
     * `Order` domain entity and related DTOs (e.g., `BuyOrderRequestDto`, `OrderPlacementResultDto`) have been defined.
     * Database table for `Orders` is created via migrations.
@@ -58,7 +53,6 @@ This application is built with a focus on Clean Architecture principles to ensur
 * **MySQL Server** (database)
 * **ASP.NET Core Identity** (for user authentication and authorization)
 * **JWT (JSON Web Tokens)** (for securing API endpoints)
-* **Stripe.net SDK** (for payment gateway integration - Test Mode)
 * **Serilog/ILogger** (for structured logging)
 * **Swagger/OpenAPI** (for API documentation and testing)
 
@@ -76,8 +70,6 @@ To run this project locally, you'll need the following prerequisites:
 
 1.  **.NET 8 SDK** ([download here](https://dotnet.microsoft.com/download/dotnet/8.0))
 2.  **MySQL Server** installed and running. You can use MySQL Workbench to manage it.
-3.  **(Required for Payment Testing) Stripe Account:** Sign up at [stripe.com](https://stripe.com) and access your **Test API Keys** (Publishable Key, Secret Key) and generate a **Webhook Signing Secret** for the webhook endpoint.
-4.  **(Recommended for Webhook Testing) ngrok:** ([download here](https://ngrok.com/download)) or Stripe CLI for forwarding webhook events to your local machine.
 
 **Steps:**
 
@@ -94,9 +86,6 @@ To run this project locally, you'll need the following prerequisites:
         * **`ConnectionStrings:DefaultConnection`**: Set your MySQL connection string.
         * **`JwtSettings:Key`**: Provide a long, strong, unique secret key for JWT signing.
         * **`JwtSettings:Issuer` & `JwtSettings:Audience`**: Update with your local development URL (e.g., `https://localhost:7001` - check `launchSettings.json`).
-        * **`StripeSettings:PublishableKey`**: Your Stripe Test Publishable Key.
-        * **`StripeSettings:SecretKey`**: Your Stripe Test Secret Key.
-        * **`StripeSettings:WebhookSecret`**: Your Stripe Webhook Signing Secret for the `/api/payments/webhook` endpoint.
 
 3.  **Apply Database Migrations:**
     * Open a terminal or Package Manager Console in Visual Studio.
@@ -147,14 +136,8 @@ This project is primarily a learning endeavor focused on:
         * Recording the `Order`.
     * **Sell Order Placement:** Implement the service logic and API endpoint for users to sell stocks they own.
 * **Real-Time Price Updates:** Integrate SignalR for live stock price updates on the client-side.
-* **Real-Time Order Status Notifications (SignalR).**
-* **Limit Orders & Stop Orders:** Implement more advanced order types.
-* **Order Matching Engine:** Develop a more sophisticated (simulated) order matching engine (especially for limit orders).
-* **Advanced Portfolio Analytics:** More detailed performance tracking, profit/loss calculations, charts.
 * **Transaction History:** API endpoints for users to view their order and payment history.
-* **Two-Factor Authentication (2FA).**
 * **Comprehensive Unit and Integration Testing.**
-* **Frontend Application:** Develop a client-side application (e.g., using Blazor, React, Angular, or Vue) to consume the API.
 * **Containerization with Docker.**
 * **CI/CD Pipeline Setup.**
 
